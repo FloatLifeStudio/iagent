@@ -1,0 +1,21 @@
+# 编译产物
+/iagent
+/dist/
+*.exe
+*.test
+
+# 测试与覆盖率输出
+*.out
+coverage.*
+
+# 本地配置与真实环境信息(含 token / IP,不入库)
+*.local.yml
+*.local.yaml
+config.local.json
+ansible/inventory.yml
+
+# 编辑器与系统文件
+.DS_Store
+*.swp
+.idea/
+.vscode/
