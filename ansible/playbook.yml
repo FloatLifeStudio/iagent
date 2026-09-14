@@ -1,0 +1,5 @@
+---
+- name: Deploy iagent CMDB collector
+  hosts: cmdb_targets
+  roles:
+    - iagent

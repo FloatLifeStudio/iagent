@@ -1,0 +1,6 @@
+---
+- name: restart iagent timer
+  ansible.builtin.systemd:
+    name: iagent.timer
+    state: restarted
+    daemon_reload: true

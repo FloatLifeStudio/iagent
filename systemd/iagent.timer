@@ -1,0 +1,9 @@
+[Unit]
+Description=Run iagent every 12h
+
+[Timer]
+OnCalendar=*-*-* 03,15:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,37 @@
+---
+- name: Create config directory
+  ansible.builtin.file:
+    path: /etc/iagent
+    state: directory
+    mode: "0700"
+
+- name: Copy iagent binary
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../dist/iagent-{{ iagent_version }}"
+    dest: /usr/local/bin/iagent
+    mode: "0755"
+  notify: restart iagent timer
+
+- name: Render config
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: /etc/iagent/config.yml
+    mode: "0600"
+  notify: restart iagent timer
+
+- name: Install systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - iagent.service
+    - iagent.timer
+  notify: restart iagent timer
+
+- name: Enable and start iagent timer
+  ansible.builtin.systemd:
+    name: iagent.timer
+    enabled: true
+    state: started
+    daemon_reload: true

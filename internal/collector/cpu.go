@@ -1,0 +1,32 @@
+package collector
+
+import (
+	"strings"
+
+	"iagent/internal/payload"
+)
+
+// CollectCpus CPU 槽位级信息(dmidecode -t processor,Socket Designation 为身份)。
+// 未安装的槽位(unpopulated)跳过;采集失败 → null。
+func CollectCpus() ([]payload.CpuSlot, error) {
+	out, err := cmdOutput("dmidecode", "-t", "processor")
+	if err != nil {
+		return nil, nil
+	}
+	var cpus []payload.CpuSlot
+	for _, block := range strings.Split(out, "Processor Information")[1:] {
+		fields := parseColonFields(block)
+		socket := fields["Socket Designation"]
+		if socket == "" {
+			continue
+		}
+		if status := strings.ToLower(fields["Status"]); strings.Contains(status, "unpopulated") {
+			continue
+		}
+		cpus = append(cpus, payload.CpuSlot{
+			Slot:  strPtr(socket),
+			Model: strPtr(fields["Version"]),
+		})
+	}
+	return cpus, nil
+}

@@ -1,0 +1,10 @@
+# 目标机清单示例;真实清单(ansible/inventory.yml)在 .gitignore 中排除
+[cmdb_targets]
+192.168.10.101 ansible_user=root
+192.168.10.102 ansible_user=root
+
+[cmdb_targets:vars]
+iagent_version=0.1.0
+iagent_server_url=http://192.168.201.18:8080
+iagent_token=
+iagent_on_calendar=*-*-* 03,15:00:00

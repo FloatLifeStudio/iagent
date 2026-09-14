@@ -1,0 +1,5 @@
+# iagent 配置,由 Ansible 渲染,手工修改会被下次部署覆盖
+server_url: {{ iagent_server_url }}
+token: "{{ iagent_token }}"
+interval: 12h
+timeout: 30s

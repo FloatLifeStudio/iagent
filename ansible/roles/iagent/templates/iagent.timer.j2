@@ -1,0 +1,9 @@
+[Unit]
+Description=Run iagent every {{ iagent_on_calendar }}
+
+[Timer]
+OnCalendar={{ iagent_on_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
