@@ -1,6 +1,6 @@
 # iagent 总体架构与项目目录结构
 
-> 采集客户端的架构设计与目录结构说明。需求与计划见 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md),推送体基准见 [PAYLOAD_EXAMPLE.md](./PAYLOAD_EXAMPLE.md)。
+> 采集客户端的架构设计与目录结构说明。需求与计划见 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md),推送体基准见 [PAYLOAD_EXAMPLE.md](./PAYLOAD_EXAMPLE.md),代码级设计见 [DESIGN.md](./DESIGN.md)。
 
 ---
 

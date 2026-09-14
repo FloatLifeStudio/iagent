@@ -2,7 +2,7 @@
 
 > 为 /data/icmdb(CMDB v2)设计的硬件资产采集客户端。
 > 需求经 SMART 逐项拷问确认(2026-09-13),本文是唯一基准,后续变更需同步更新。
-> 总体架构与目录结构见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+> 总体架构与目录结构见 [ARCHITECTURE.md](./ARCHITECTURE.md),代码级设计见 [DESIGN.md](./DESIGN.md)。
 
 ---
 
@@ -25,7 +25,7 @@ CMDB v2 链路为 `采集 → JSON → CMDB API → 存储 → UI`,系统只管�
 
 | 决策点 | 结论 |
 |---|---|
-| 语言/形态 | **Go 编译单文件常驻程序**(否决 shell 与 Rust:维护成本与兼容性考量) |
+| 语言/形态 | **Go 编译单文件程序,one-shot 模式**(否决 shell 与 Rust:维护成本与兼容性考量;systemd timer 触发,采集→推送→退出) |
 | 运行权限 | **root**(内存槽位 SMBIOS、电源 dmidecode、整机 SN 均依赖特权,无 root 路线已验证走不通) |
 | 部署 | **Ansible** 下发安装/升级/配置(常驻 agent 模式) |
 | 定时驱动 | 本机 **systemd timer**,12h 一次,间隔可配 |
