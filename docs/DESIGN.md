@@ -64,19 +64,20 @@ type Collector[T any] interface {
 
 - 每个类别一个文件,内部采集函数统一签名 `func() (*string, error)` 或 `func() ([]X, error)`,error → nil 映射收敛在 collector 内
 - **无外部依赖假设**:优先用 gopsutil 与 /sys、/proc 直读;dmidecode/nvidia-smi 以 `exec.Command` 调用(root 环境已确认)
+- **占位值归一化(`normStr`)**:`Unknown` / `None` / `N/A` / `NA` / `[N/A]` / `NULL` / `Not Specified` 等占位输出视为未采集 → nil(采纳 dg-agent 的 `_normalize` 思路)
 
 | 文件 | 采集内容 | 失败处理 |
 |---|---|---|
-| `os.go` | hostname(`hostname -f`)/ type / version / kernel | **hostname 失败 → error 中止**;其余失败 → null |
-| `mgmt.go` | IPMI/BMC(ipmitool lan print 或 dmidecode type 38) | 任一字段失败 → null |
-| `nics.go` | gopsutil net.Interface / /sys/class/net(排除 lo) | 列表失败 → null;单网卡内字段失败 → null |
-| `memory.go` | dmidecode -t memory(过滤空槽) | 失败 → null |
-| `cpu.go` | /proc/cpuinfo + dmidecode -t processor | 失败 → null |
-| `disk.go` | lsblk -bndo NAME,SERIAL + /sys/block | 失败 → null |
-| `psu.go` | dmidecode -t chassis(电源插座信息) | 失败 → null |
-| `gpu.go` | `nvidia-smi --query-gpu=uuid,name,serial_number,memory.total,driver_version,pci.bus_id --format=csv,noheader` | nvidia-smi 不存在或失败 → gpu 整体 null(GPU 服务器必有,机器无 GPU 也 null) |
+| `os.go` | hostname(`hostname -f`)/ type / version / kernel / virt(`systemd-detect-virt`,兜底 DMI sys_vendor) | **hostname 失败 → error 中止**;其余失败 → null |
+| `mgmt.go` | `ipmitool lan print` 解析 MAC/IP/Subnet Mask | ipmitool 不存在或失败 → 字段全 null;BMC IP 未分配输出 `0.0.0.0` → null(含 prefix_length 联动) |
+| `nics.go` | gopsutil net(排除 lo),CIDR 解析 IP/prefix | 列表失败 → null;单网卡内字段失败 → null |
+| `memory.go` | `dmidecode -t memory`(跳过 `No Module` 空槽) | 失败 → null |
+| `cpu.go` | /proc/cpuinfo + `dmidecode -t processor`(跳过未插槽) | 失败 → null |
+| `disk.go` | `lsblk -bJ -o NAME,SERIAL,TYPE,MODEL,SIZE,ROTA` JSON 输出(过滤 loop/ram 等 type != disk);type 按 ROTA 推断(1=HDD,0=SSD) | 失败 → null;`manufacturer` 从 model 解析不可靠,按设计置 null |
+| `psu.go` | `dmidecode -t 39` System Power Supply;`Status: Not Present` 空槽跳过;容量兼容 `Maximum`/`Max Power Capacity`(dmidecode 3.3 vs 新版) | 失败 → null |
+| `gpu.go` | `nvidia-smi --query-gpu=uuid,gpu_name,serial,memory.total,driver_version,pci.bus_id --format=csv,noheader,nounits` | nvidia-smi 不存在或失败 → gpu 整体 null(机器无 GPU 也 null) |
 
-**GPU 解析要点**:`memory.total` 以 `nounits` 拿到 MiB 数值,经 normalize 转为 `size` + `size_unit`;`pci.bus_id` 仅作参考字段;SN 可能为空字符串 → null。
+**GPU 解析要点**:`memory.total` 以 `nounits` 拿到 MiB 数值,经 normalize 转为 `size` + `size_unit`;`pci.bus_id` 仅作参考字段;SN 查询字段名是 **`serial`**(不是 `serial_number`,驱动会拒绝该查询,已验证);消费级卡(如 4090D)SN 输出 `[N/A]` → null。
 
 ### 2.3 normalize —— 容量归一化
 
@@ -102,8 +103,8 @@ type Payload struct {
 
 type Agent struct {
     Version   string `json:"version"`   // 编译期注入 -ldflags "-X main.version=..."
-    Source    string `json:"source"`    // 固定 "collector"
-    Timestamp string `json:"timestamp"` // RFC3339 带时区
+    Source    string `json:"source"`    // 固定 "icmdb"
+    Timestamp string `json:"timestamp"` // RFC3339,统一 UTC(time.Now().UTC())
 }
 ```
 
@@ -185,7 +186,7 @@ ansible/roles/iagent/
 | 推送 4xx/5xx/超时 | 记日志,不重试 | 1 |
 | 配置错误 | 启动即失败,记日志 | 1 |
 
-- 日志输出到 stdout/stderr(journald 接管),格式:`2026-09-13T10:00:00+08:00 [INFO] push ok: result=unchanged device_id=1`
+- 日志输出到 stdout/stderr(journald 接管),格式:`2026-09-14T07:15:01Z [INFO] push ok: result=unchanged device_id=1`
 - 日志级别:INFO(正常流程)/ WARN(字段失败置 null)/ ERROR(中止性失败)
 
 ## 六、设计要点回顾(拷问结论落点)
@@ -195,7 +196,20 @@ ansible/roles/iagent/
 | one-shot 进程(修正"常驻"叫法) | systemd timer 标准模式 |
 | 单字段失败置 null,hostname 失败中止 | 需求确认 2026-09-13 |
 | 指针类型强制 null 语义 | payload 层最终防线 |
+| 占位值归一化(Unknown/NULL/[N/A]... → null) | dg-agent 设计 + 生产验证 2026-09-14 |
+| 空槽跳过(内存 No Module / 电源 Not Present) | 生产验证 2026-09-14 |
 | GPU 身份 uuid,pcie_id 仅参考 | 需求确认 |
-| 容量归一化在客户端 | 需求确认(规则见 2.4) |
+| GPU SN 查询字段 `serial`(非 serial_number) | dg-agent 设计,驱动 610.43.02 验证 |
+| 容量归一化在客户端 | 需求确认(规则见 2.3) |
 | token 预留(header 位) | icmdb 鉴权待实现 |
 | full_sync 暂不推送 | 启用时固定置 true,避开生产高峰 |
+
+## 七、生产验证记录(2026-09-14)
+
+163 / 161 两台生产 GPU 服务器全链路验证通过(采集 → 组装 → 推送本地哑服务,未触生产数据):
+
+- **裸金属检测正确**:`systemd-detect-virt` 直读,两台均报 `bare_metal`
+- **机器差异已覆盖**:dmidecode 3.3(SMBIOS 3.6.0)的 `NULL` 占位、`Max Power Capacity` 键名、未插 PSU 空槽;BMC 未配置时的 `0.0.0.0`;消费级 GPU 无 SN
+- **结构一致性**:两台 payload 顶层与 hardware 层字段完全一致(同名必同义)
+- **遗留项**:`disks[].manufacturer` 置 null 留待更多机器验证;163 未装 ipmitool(`mgmt` null);nics 含 `docker0`/`veth*` 虚拟网卡,是否过滤待定
+- **部署坑**:上传前必须先重新构建(`dist/` 下 gz 可能落后于源码),构建命令见 [USAGE.md](./USAGE.md)

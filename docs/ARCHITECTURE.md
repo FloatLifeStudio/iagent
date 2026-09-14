@@ -9,28 +9,28 @@
 iagent 在 CMDB 链路中的位置:
 
 ```
-┌───────────────────────────── 被管服务器 × N ─────────────────────────────┐
-│                                                                        │
-│   systemd timer(12h,可配)                                              │
-│        │                                                               │
-│        ▼                                                               │
-│   iagent(Go 单文件常驻程序,root 运行)                                    │
-│                                                                        │
-│   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐     │
-│   │ collector │ →  │ normalize │ →  │ payload   │ →  │   push    │     │
-│   │  采集模块  │    │  容量归一化 │    │ 组装+null  │    │ HTTP 推送 │     │
-│   └───────────┘    └───────────┘    └───────────┘    └───────────┘     │
-│    os / mgmt /      GB·TB 取 ≥1      单字段失败       POST /api/v1      │
-│    hardware七类      最大单位,整数     置 null         /devices         │
-│                                                                        │
-└────────────────────────────┬───────────────────────────────────────────┘
+┌─────────────────────────── 被管服务器 × N ───────────────────────────┐
+│                                                                      │
+│   systemd timer(12h,可配)                                            │
+│        │                                                             │
+│        ▼                                                             │
+│   iagent(Go 单文件 one-shot 程序,root 运行)                          │
+│                                                                      │
+│   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐   │
+│   │ collector │ →  │ normalize │ →  │ payload   │ →  │   push    │   │
+│   │  采集模块 │    │ 容量归一化│    │ 组装+null │    │ HTTP 推送 │   │
+│   └───────────┘    └───────────┘    └───────────┘    └───────────┘   │
+│    os / mgmt /      GB·TB 取 ≥1      单字段失败       POST /api/v1   │
+│    hardware七类      最大单位,整数     置 null         /devices      │
+│                                                                      │
+└────────────────────────────┬─────────────────────────────────────────┘
                              │ JSON over HTTP(12h 一次,失败下周期自愈)
                              ▼
-              ┌────────────────────────────────┐
-              │  CMDB API(FastAPI :8080)      │
-              │  ingest → diff → 存储 → UI      │
-              │  created/unchanged/diff_created │
-              └────────────────────────────────┘
+              ┌──────────────────────────────────┐
+              │  CMDB API(FastAPI :8080)         │
+              │  ingest → diff → 存储 → UI       │
+              │  created/unchanged/diff_created  │
+              └──────────────────────────────────┘
 ```
 
 CMDB 侧只管存储和查询:推送是唯一数据写入入口,字段级 diff 进待裁决,UI 只读 + 裁决。
@@ -55,18 +55,22 @@ CMDB 侧只管存储和查询:推送是唯一数据写入入口,字段级 diff �
 ├── docs/                          # 文档
 │   ├── DEVELOPMENT_PLAN.md        # 开发计划(需求总结 + 分阶段)
 │   ├── PAYLOAD_EXAMPLE.md         # 推送体 JSON 基准
-│   └── ARCHITECTURE.md            # 本文档
+│   ├── ARCHITECTURE.md            # 本文档
+│   ├── DESIGN.md                  # 代码级详细设计
+│   └── USAGE.md                   # 使用手册(构建/部署/验证/排查)
 │
 ├── cmd/
-│   └── iagent/
-│       └── main.go                # 入口:加载配置 → 组装流水线 → 定时循环 + 信号处理
+│   ├── iagent/
+│   │   └── main.go                # 入口(one-shot):加载配置 → 采集 → 组装 → 推送 → 退出
+│   └── prototype/
+│       └── main.go                # 阶段 0 字段可得性验证原型
 │
 ├── internal/
 │   ├── config/
 │   │   └── config.go              # 服务器地址 / token(预留)/ 推送间隔;文件 + 参数两种来源
 │   │
 │   ├── collector/                 # 采集模块(每个类别独立文件,互不依赖)
-│   │   ├── collector.go           # Collector 接口定义 + 注册表
+│   │   ├── collector.go           # 公共辅助(命令输出解析、null 指针转换)
 │   │   ├── os.go                  # hostname / type / version / kernel
 │   │   ├── mgmt.go                # IPMI/BMC 带外管理口
 │   │   ├── hardware.go            # hardware 组分发器
@@ -101,8 +105,10 @@ CMDB 侧只管存储和查询:推送是唯一数据写入入口,字段级 diff �
 │           └── handlers/main.yml  # 配置变更后重启服务
 │
 ├── tests/
-│   └── fixtures/                  # 集成测试样例数据
-│       └── collector_example.json
+│   ├── fixtures/                  # 集成测试样例数据
+│   │   └── collector_example.json
+│   ├── local_server.py            # 本地哑服务(:18080 接收推送/提供下载),生产验证用
+│   └── session_holder.py          # 堡垒机会话保持辅助(pexpect + FIFO 命令通道)
 │
 ├── .gitignore
 └── go.mod

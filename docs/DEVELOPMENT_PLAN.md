@@ -1,7 +1,6 @@
 # iagent 采集客户端开发计划
 
-> 为 /data/icmdb(CMDB v2)设计的硬件资产采集客户端。
-> 需求经 SMART 逐项拷问确认(2026-09-13),本文是唯一基准,后续变更需同步更新。
+> 为 icmdb 设计的硬件资产采集客户端
 > 总体架构与目录结构见 [ARCHITECTURE.md](./ARCHITECTURE.md),代码级设计见 [DESIGN.md](./DESIGN.md)。
 
 ---
@@ -35,7 +34,7 @@ CMDB v2 链路为 `采集 → JSON → CMDB API → 存储 → UI`,系统只管�
 
 | 类别 | 字段 | 来源 |
 |---|---|---|
-| os | hostname(匹配键)/ type / version / kernel | `uname -n`、`/etc/os-release`、`uname -r` |
+| os | hostname(匹配键)/ type / version / kernel / virt(裸金属/虚拟机类型) | `uname -n`、`/etc/os-release`、`uname -r`、`systemd-detect-virt` |
 | agent | version / source / timestamp | 采集器自身 |
 | mgmt | mac / ip / prefix_length | IPMI/BMC(带外通道) |
 | hardware.nics | name(身份)/ mac / ips[ip, prefix_length] | `/sys/class/net`、`ip` |
@@ -43,7 +42,7 @@ CMDB v2 链路为 `采集 → JSON → CMDB API → 存储 → UI`,系统只管�
 | hardware.cpus | slot(身份)/ model | `/proc/cpuinfo`、`dmidecode` |
 | hardware.disks | serial_number(身份)/ type / manufacturer / model / size+size_unit | `lsblk`、`/sys/block`、`dmidecode` |
 | hardware.psus | serial_number(身份)/ manufacturer / model / max_power_w | `dmidecode` |
-| hardware.gpu.slots | **uuid(身份)**/ name / serial_number / size+size_unit / driver_version / pcie_id | `nvidia-smi --query-gpu` |
+| hardware.gpu.slots | **uuid(身份)**/ name / serial_number / size+size_unit / driver_version / pcie_id | `nvidia-smi --query-gpu`(SN 字段名为 `serial`) |
 
 - GPU 身份用 **uuid**:恒有且跨重启稳定;`pcie_id` 不稳定仅作参考;部分型号无 SN
 - `full_sync` 暂不启用(removed 候删暂不可用);启用时由采集端固定置 true,并避开生产高峰(首次启用会全量推进待裁决)
@@ -67,12 +66,12 @@ CMDB v2 链路为 `采集 → JSON → CMDB API → 存储 → UI`,系统只管�
 
 ```json
 {
-  "agent":  {"version": "0.1.0", "source": "collector",
-             "timestamp": "2026-09-13T10:00:00+08:00"},
-  "os":     {"hostname": "S1A01DC-VL101", "type": "linux",
-             "version": "Ubuntu 22.04.5 LTS", "kernel": "5.15.0-131-generic"},
+  "agent":  {"version": "0.1.0", "source": "icmdb",
+             "timestamp": "2026-09-14T07:14:55Z"},
+  "os":     {"hostname": "gpu-node-01", "type": "linux",
+             "version": "Ubuntu 22.04.5 LTS", "kernel": "5.15.0-186-generic"},
   "mgmt":   {"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.10.101", "prefix_length": 24},
-  "hardware": {"chassis_serial_number": "PF4ABC123456",
+  "hardware": {"chassis_serial_number": "SN0000000001",
                "nics": [...], "memory": {"slots": [...]}, "cpus": [...],
                "disks": [...], "psus": [...], "gpu": {"slots": [...]}}
 }
@@ -90,7 +89,9 @@ CMDB v2 链路为 `采集 → JSON → CMDB API → 存储 → UI`,系统只管�
 | nvidia-smi 字段确认 | `--query-gpu` 实际输出清单 | uuid/SN/driver/显存字段真实值确认 |
 | 目标机环境摸底 | 系统清单(CentOS 7?systemd 版本?) | Go 静态二进制兼容性确认 |
 
-### 阶段 1:采集器 v1(核心)
+### 阶段 1:采集器 v1(核心)✅ 已完成(2026-09-14)
+
+> 生产验证:163/161 两台 GPU 服务器全链路跑通(采集 → 组装 → 推送),占位值归一化、空槽跳过、BMC 未配置、GPU 混插等边界场景符合设计;详见 [DESIGN.md](./DESIGN.md) 第七节。
 
 | 任务 | 产出 | 验收标准 |
 |---|---|---|
@@ -136,7 +137,7 @@ CMDB v2 链路为 `采集 → JSON → CMDB API → 存储 → UI`,系统只管�
 
 ## 五、里程碑
 
-- **M1**:阶段 0 完成,字段可得性报告(预计 1~2 天)
-- **M2**:采集器 v1 + 单测通过(预计 3~5 天)
+- **M1**:阶段 0 完成,字段可得性报告 ✅(2026-09-13)
+- **M2**:采集器 v1 + 单测通过 + 生产机器验证 ✅(2026-09-14,163/161 全链路)
 - **M3**:Ansible 批量部署上线(预计 1~2 天)
 - **M4**:服务端对接完成,全链路验收(依赖 icmdb 侧排期)
