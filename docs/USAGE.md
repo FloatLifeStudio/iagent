@@ -72,31 +72,150 @@ timeout: 30s
 - 配置文件不存在 → 读文件报错退出;确认路径后再启动
 - YAML 格式错误 → 解析报错退出,错误信息带文件路径
 
-## 三、手动部署(单机)
+## 三、在新机器上部署(手动,分步)
 
-目标机要求:Linux + systemd、root 权限。**主机名(`hostname -f`)是匹配键,部署前确认已正确设置。**
+> 完整走一遍:一台全新机器从零到接入 CMDB 托管采集。Ansible 批量部署见第四节,单机或少量机器用本节。
+
+### 3.0 前置条件检查
 
 ```bash
-# 1. 分发二进制(控制机 → 目标机)
+# 1) 确认是 root(硬件字段依赖特权,无 root 会全为 null)
+whoami
+# 预期输出:root
+
+# 2) 确认有 systemd(托管依赖 systemd timer)
+systemctl --version | head -1
+# 预期输出:systemd 245 (245.4-4ubuntu3.24) 之类,任意现代版本均可
+
+# 3) 确认主机名正确(!! 关键:hostname 是 CMDB 的匹配键,同机改名会产生残留设备)
+hostname -f
+# 预期输出:完整 FQDN,如 gpu-node-01
+# 若为空或不对:先改好(以实际 DNS/hosts 策略为准),再继续部署
+
+# 4) 确认网络可达 CMDB(把 server_url 换成实际值)
+curl -s --max-time 5 http://192.168.201.18:8080/health
+# 预期输出:ok(或 CMDB 定义的健康检查响应)
+
+# 5) 确认采集工具存在(缺哪个对应类别就为 null,不阻断部署)
+which dmidecode nvidia-smi ipmitool 2>/dev/null
+# dmidecode:几乎所有 Linux 都有;缺它 → 内存/CPU/电源/整机 SN 为 null
+# nvidia-smi:有 GPU 的机器才有;缺它 → gpu.slots 为 null
+# ipmitool:有 BMC 带外的机器才有;缺它 → mgmt 为 null
+```
+
+### 3.1 获取二进制
+
+```bash
+# 方式一:控制机 scp 分发(先在控制机构建,见第一节)
 scp dist/iagent-0.1.0 user@target:/tmp/
 
-# 2. 安装二进制与配置(目标机上,root)
+# 方式二:目标机直接从发布地址下载(有 HTTP 分发服务时)
+wget http://<release-host>/iagent-0.1.0.gz -O /tmp/iagent-0.1.0.gz
+gunzip /tmp/iagent-0.1.0.gz
+
+# (可选)校验与本地 md5 一致
+md5sum /tmp/iagent-0.1.0
+```
+
+### 3.2 安装二进制
+
+```bash
 sudo cp /tmp/iagent-0.1.0 /usr/local/bin/iagent
 sudo chmod +x /usr/local/bin/iagent
+
+# 验证:直接跑版本号(还能看到缺配置的报错,属预期)
+iagent --config /dev/null
+# 预期输出:[ERROR] config: server_url is required
+```
+
+### 3.3 写配置
+
+```bash
 sudo mkdir -p /etc/iagent
-sudo vim /etc/iagent/config.yml        # 按第二节填写
+sudo vim /etc/iagent/config.yml
+```
 
-# 3. 手动验证一次(不等 timer,确认能采能推)
+最少只需要一行也能跑(其余全走默认值):
+
+```yaml
+server_url: http://192.168.201.18:8080
+```
+
+推荐写完整配置(逐项注释见第二节):
+
+```yaml
+server_url: http://192.168.201.18:8080
+token: ""
+interval: 12h
+timeout: 30s
+```
+
+### 3.4 首次手动运行(验证能采能推)
+
+```bash
 sudo /usr/local/bin/iagent --config /etc/iagent/config.yml
-# 成功输出:[INFO] push ok: result=created device_id=1 pending_change_id=<nil>
+```
 
-# 4. 安装 systemd 单元(仓库 systemd/ 目录)
+三种结果分支:
+
+| 输出 | 含义 |
+|---|---|
+| `[INFO] push ok: result=created device_id=1 pending_change_id=<nil>` | 成功,CMDB 首次创建该主机 |
+| `[INFO] push ok: result=unchanged device_id=N ...` | 成功,字段无差异(重复跑会看到这个) |
+| `[ERROR] ...` + 退出码 1 | 失败,按第八节排查;常见为 CMDB 不可达或 hostname 为空 |
+
+> 此时不接 systemd 也可以先多跑几次,确认各字段采集正常(在 CMDB 或推送目标侧查看 payload 字段),再进入托管。
+
+### 3.5 安装系统托管(systemd timer)
+
+```bash
+# 1) 安装单元文件(从仓库 systemd/ 目录,或发布包)
 sudo cp systemd/iagent.service systemd/iagent.timer /etc/systemd/system/
+
+# 2) 重新加载 systemd(新增/修改单元文件后必须)
 sudo systemctl daemon-reload
 
-# 5. 启用定时器
+# 3) 启用并启动定时器(--now 同时启动,不用再手动 start)
 sudo systemctl enable --now iagent.timer
 ```
+
+两个单元的分工(`systemd/iagent/`):
+
+```ini
+# iagent.service —— 真正干活的(oneshot:采集 → 推送 → 退出)
+[Service]
+Type=oneshot                              # 跑完即退,不常驻
+ExecStart=/usr/local/bin/iagent --config /etc/iagent/config.yml
+User=root                                 # 硬件字段需要 root
+```
+
+```ini
+# iagent.timer —— 定时触发 service
+[Timer]
+OnCalendar=*-*-* 03,15:00:00              # 每天 03:00 / 15:00 各一次
+Persistent=true                           # 关机错过的周期,开机后补跑
+[Install]
+WantedBy=timers.target
+```
+
+### 3.6 部署完成确认清单
+
+```bash
+# ✅ timer 已启用且有下次触发计划
+systemctl list-timers iagent.timer
+# 预期:Next elapse 行显示下次 03:00 或 15:00
+
+# ✅ 上次运行成功
+systemctl status iagent.service
+# 预期:Active: inactive (dead) 且 Process/ExitStatus 退出码 0
+# (oneshot 跑完显示 inactive (dead) 是正常的,不是挂了)
+
+# ✅ 日志正常
+journalctl -u iagent.service --no-pager | tail
+# 预期:[INFO] push ok: result=created ...
+```
+
+都通过即部署完成。此后机器每 12h 自动采集推送一次,与 CMDB 的交互(入库/裁决/下线判定)由服务端处理,机器侧无需任何人工干预。
 
 ## 四、Ansible 批量部署
 
