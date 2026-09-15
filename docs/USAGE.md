@@ -62,6 +62,7 @@ timeout: 30s
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `--config` | `/etc/iagent/config.yml` | 配置文件路径;传 `/dev/null` 可跳过文件(仅用参数 + 默认值) |
+| `--init` | - | **生成默认配置文件**到 `--config` 路径(带全部注释);已存在则不覆盖;生成后填好 `server_url` 再正式运行 |
 | `--server` | - | CMDB API 地址,**覆盖**配置文件的 `server_url` |
 | `--token` | - | API token,**覆盖**配置文件的 `token` |
 
@@ -131,24 +132,24 @@ iagent --config /dev/null
 ### 3.3 写配置
 
 ```bash
+# 方式一(推荐):--init 自动生成带全部注释的默认配置
+sudo iagent --init
+# 预期输出:[INFO] config written: /etc/iagent/config.yml
+#           [INFO] 填好 server_url 后运行 iagent 正式采集
+
+# 方式二:手动创建
 sudo mkdir -p /etc/iagent
 sudo vim /etc/iagent/config.yml
 ```
 
-最少只需要一行也能跑(其余全走默认值):
+生成的模板含全部选项与注释,把 `server_url: ""` 填成实际地址即可:
 
-```yaml
-server_url: http://192.168.201.18:8080
+```bash
+sudo vim /etc/iagent/config.yml
+# server_url: http://192.168.201.18:8080
 ```
 
-推荐写完整配置(逐项注释见第二节):
-
-```yaml
-server_url: http://192.168.201.18:8080
-token: ""
-interval: 12h
-timeout: 30s
-```
+> `--init` 幂等:配置文件已存在则不覆盖(提示后退出,exit 0);重新生成需先删除旧文件。也可以自定义路径:`iagent --init --config /path/to/config.yml`。
 
 ### 3.4 首次手动运行(验证能采能推)
 
