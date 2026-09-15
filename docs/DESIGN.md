@@ -169,7 +169,7 @@ ansible/roles/iagent/
 │   ├── config.yml.j2    # server/token/interval
 │   ├── iagent.service.j2
 │   └── iagent.timer.j2  # OnCalendar 由 interval 生成
-�└── handlers/main.yml    # 配置变更 → daemon-reload
+└── handlers/main.yml    # 配置变更 → daemon-reload
 ```
 
 - **幂等**:二进制按版本号比对,相同跳过;配置 changed → handler reload
