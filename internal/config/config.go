@@ -2,12 +2,16 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ErrNoServerURL 缺少必填的 server_url。
+var ErrNoServerURL = errors.New("server_url is required")
 
 type Config struct {
 	ServerURL string        `yaml:"server_url"`
@@ -35,7 +39,7 @@ func Load(path, serverURL, token string) (Config, error) {
 		cfg.Token = token
 	}
 	if cfg.ServerURL == "" {
-		return Config{}, fmt.Errorf("server_url is required")
+		return Config{}, ErrNoServerURL
 	}
 	if cfg.Interval <= 0 {
 		cfg.Interval = 12 * time.Hour

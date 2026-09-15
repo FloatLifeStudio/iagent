@@ -3,6 +3,8 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -55,6 +57,7 @@ func run() int {
 	serverURL := flag.String("server", "", "CMDB API 地址,如 http://192.168.201.18:8080")
 	token := flag.String("token", "", "API token(预留)")
 	initConfig := flag.Bool("init", false, "生成默认配置文件(已存在则不覆盖)")
+	printOnly := flag.Bool("print", false, "只采集并打印 JSON 到 stdout,不推送(测试用)")
 	flag.Parse()
 
 	if *initConfig {
@@ -63,8 +66,11 @@ func run() int {
 
 	cfg, err := config.Load(*configPath, *serverURL, *token)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] config: %v\n", err)
-		return 1
+		// --print 测试模式:不推送,允许未配置 server_url(其余配置错误仍中止)
+		if !(*printOnly && errors.Is(err, config.ErrNoServerURL)) {
+			fmt.Fprintf(os.Stderr, "[ERROR] config: %v\n", err)
+			return 1
+		}
 	}
 
 	// hostname 失败是唯一硬失败:中止,不推送
@@ -87,6 +93,17 @@ func run() int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] build payload: %v\n", err)
 		return 1
+	}
+
+	// --print 测试模式:打印采集结果 JSON,不推送
+	if *printOnly {
+		b, err := json.MarshalIndent(p, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[ERROR] marshal payload: %v\n", err)
+			return 1
+		}
+		fmt.Println(string(b))
+		return 0
 	}
 
 	result, err := push.NewClient(cfg.ServerURL, cfg.Token).Push(&p)
