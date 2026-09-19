@@ -1,7 +1,7 @@
-"""本地辅助服务(23-HCI 上运行):
-- GET  /iagent.gz          → 提供精简二进制下载(经 SSH 反向隧道给远端)
-- POST /api/v1/devices     → 捕获远端推送的 payload,存文件
-- GET  /health             → 健康检查
+"""Local helper server (runs on 23-HCI):
+- GET  /iagent.gz          -> serves the stripped binary (via SSH reverse tunnel to remote)
+- POST /api/v1/devices     -> captures the payload pushed by remote, saves to file
+- GET  /health             -> health check
 """
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer

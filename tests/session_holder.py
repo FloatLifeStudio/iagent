@@ -1,10 +1,11 @@
-"""持久 SSH 会话保持器:认证后常驻,通过 FIFO 接收命令,在会话内执行并输出到文件。
+"""Persistent SSH session holder: stays alive after auth, receives commands via a
+FIFO, executes them in the session and writes output to a file.
 
-用法:python3 tests/session_holder.py <TOTP>
-驱动:echo '<cmd>' > /tmp/iagent-ssh-cmd.fifo ;输出追加到 /tmp/iagent-ssh-out.txt
-特殊命令:
-  UPLOAD:<local_path>:<remote_path>   — 上传本地文件(base64 分块)
-  ___EXIT___                          — 退出会话
+Usage: python3 tests/session_holder.py <TOTP>
+Drive: echo '<cmd>' > /tmp/iagent-ssh-cmd.fifo ; output appended to /tmp/iagent-ssh-out.txt
+Special commands:
+  UPLOAD:<local_path>:<remote_path>   -- upload a local file (base64 chunks)
+  ___EXIT___                          -- exit the session
 """
 import base64
 import os
@@ -19,7 +20,7 @@ FIFO = "/tmp/iagent-ssh-cmd.fifo"
 OUT = "/tmp/iagent-ssh-out.txt"
 PROMPT = "IAGENT_PROMPT_"
 
-# FIFO 由脚本自行创建,避免启动前残留/缺失问题
+# the FIFO is created by this script itself, avoiding stale/missing issues before startup
 if os.path.exists(FIFO):
     os.unlink(FIFO)
 os.mkfifo(FIFO)
@@ -30,7 +31,7 @@ def log(msg):
         f.write(str(msg) + "\n")
 
 
-# --- 认证(免 TOTP,仅密码) ---
+# --- auth (no TOTP, password only) ---
 child = pexpect.spawn(
     f'ssh -p {PORT} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null '
     f'-o ExitOnForwardFailure=no -R 18080:127.0.0.1:18080 "{HOST}"',
@@ -39,7 +40,7 @@ child.expect(["assword:", pexpect.TIMEOUT], timeout=30)
 child.sendline(PASSWORD)
 log("auth: password sent")
 
-# --- 等目标机 shell,设置唯一提示符 ---
+# --- wait for the target shell, set a unique prompt marker ---
 child.expect([r"\$ $", r"# $"], timeout=60)
 child.sendline("export PS1='" + PROMPT + "'")
 child.sendline("echo AUTH-READY")
@@ -47,7 +48,7 @@ child.expect("AUTH-READY", timeout=30)
 child.expect(PROMPT)
 log("auth: session ready")
 
-# --- 命令循环 ---
+# --- command loop ---
 while True:
     with open(FIFO) as fifo:
         for line in fifo:
@@ -63,7 +64,8 @@ while True:
                 with open(local, "rb") as f:
                     data = base64.b64encode(f.read()).decode()
                 child.sendline(f"cat > {remote}.b64")
-                # pty 行缓冲上限 4096,分块必须 ≤4000 字符(超过会永久死锁)
+                # pty line buffer limit is 4096, chunks must be <= 4000 chars
+                # (larger chunks deadlock permanently)
                 n = 0
                 for i in range(0, len(data), 4000):
                     child.sendline(data[i:i + 4000])
@@ -76,7 +78,7 @@ while True:
                 child.expect(PROMPT, timeout=60)
                 log(f"upload {remote}: ok")
                 continue
-            # 普通命令:执行,输出到 OUT
+            # normal command: execute, output to OUT
             child.sendline(cmd)
             child.expect(PROMPT, timeout=300)
             log(child.before)

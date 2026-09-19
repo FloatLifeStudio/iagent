@@ -8,7 +8,7 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectMemory 内存槽位(dmidecode)。采集失败 → null。
+// CollectMemory collects memory slots (dmidecode). Failure -> null
 func CollectMemory() (payload.MemoryInfo, error) {
 	out, err := cmdOutput("dmidecode", "-t", "memory")
 	if err != nil {
@@ -23,7 +23,7 @@ func parseMemorySlots(out string) []payload.MemorySlot {
 		fields := parseColonFields(block)
 		size := fields["Size"]
 		if size == "" || strings.Contains(size, "No Module") {
-			continue // 空槽位不采集
+			continue // skip empty slots
 		}
 		slot := payload.MemorySlot{
 			Slot:         strPtr(fields["Locator"]),

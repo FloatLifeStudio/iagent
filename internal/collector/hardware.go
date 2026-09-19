@@ -7,8 +7,9 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectHardware hardware 组:nics/memory/cpus/disks/psus/gpu 各自独立采集,
-// 单类别失败置 null,互不影响。
+// CollectHardware collects the hardware group: nics/memory/cpus/disks/psus/gpu
+// are collected independently, single-category failure is set to null
+// without affecting others
 func CollectHardware() (payload.Hardware, error) {
 	hw := payload.Hardware{}
 
@@ -35,7 +36,8 @@ func CollectHardware() (payload.Hardware, error) {
 	return hw, nil
 }
 
-// chassisSerial 整机序列号,root only(/sys/class/dmi/id/product_serial)。
+// chassisSerial reads the chassis serial number, root only
+// (/sys/class/dmi/id/product_serial)
 func chassisSerial() *string {
 	b, err := os.ReadFile("/sys/class/dmi/id/product_serial")
 	if err != nil {

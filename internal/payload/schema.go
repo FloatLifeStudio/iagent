@@ -1,8 +1,9 @@
-// Package payload 推送体结构定义与组装
-// null 语义:所有可失败字段用指针类型,nil 即 JSON null(未采集,保留现状)
+// Package payload defines the push payload structure and assembly.
+// null semantics: all nullable fields use pointer types, nil is JSON null
+// (not collected, keep existing data)
 package payload
 
-// Payload 推送体,四组层级:agent / os / mgmt / hardware
+// Payload is the push payload with four top-level groups: agent / os / mgmt / hardware
 type Payload struct {
 	Agent    Agent     `json:"agent"`
 	OS       OS        `json:"os"`
@@ -10,30 +11,30 @@ type Payload struct {
 	Hardware *Hardware `json:"hardware"`
 }
 
-// Agent 信封元数据
+// Agent holds envelope metadata
 type Agent struct {
 	Version   string `json:"version"`
 	Source    string `json:"source"`
 	Timestamp string `json:"timestamp"`
 }
 
-// OS hostname(匹配键,必填)+ OS 信息
+// OS holds hostname (matching key, required) plus OS info
 type OS struct {
 	Hostname string  `json:"hostname"`
 	Type     string  `json:"type"`
 	Version  *string `json:"version"`
 	Kernel   *string `json:"kernel"`
-	Virt     *string `json:"virt"` // bare_metal 或虚拟化类型(kvm/vmware/qemu/xen...)
+	Virt     *string `json:"virt"` // bare_metal or virtualization type (kvm/vmware/qemu/xen...)
 }
 
-// Mgmt 带外管理口信息
+// Mgmt holds out-of-band management port info
 type Mgmt struct {
 	MAC          *string `json:"mac"`
 	IP           *string `json:"ip"`
 	PrefixLength *int    `json:"prefix_length"`
 }
 
-// Hardware 全部硬件信息
+// Hardware holds all hardware info
 type Hardware struct {
 	ChassisSerialNumber *string     `json:"chassis_serial_number"`
 	Nics                []Nic       `json:"nics"`
@@ -44,7 +45,7 @@ type Hardware struct {
 	Gpu                 *Gpu        `json:"gpu"`
 }
 
-// Nic 网卡,name 为身份
+// Nic is a network interface, name is the identity
 type Nic struct {
 	Name string  `json:"name"`
 	MAC  *string `json:"mac"`
@@ -60,7 +61,7 @@ type MemoryInfo struct {
 	Slots []MemorySlot `json:"slots"`
 }
 
-// MemorySlot 内存条,slot 为身份
+// MemorySlot is a DIMM, slot is the identity
 type MemorySlot struct {
 	Slot         *string `json:"slot"`
 	Manufacturer *string `json:"manufacturer"`
@@ -72,13 +73,13 @@ type MemorySlot struct {
 	SerialNumber *string `json:"serial_number"`
 }
 
-// CpuSlot CPU,slot 为身份
+// CpuSlot is a CPU, slot is the identity
 type CpuSlot struct {
 	Slot  *string `json:"slot"`
 	Model *string `json:"model"`
 }
 
-// Disk 硬盘,serial_number 为身份
+// Disk is a disk drive, serial_number is the identity
 type Disk struct {
 	SerialNumber *string `json:"serial_number"`
 	Type         *string `json:"type"`
@@ -88,7 +89,7 @@ type Disk struct {
 	SizeUnit     *string `json:"size_unit"`
 }
 
-// Psu 电源,serial_number 为身份
+// Psu is a power supply, serial_number is the identity
 type Psu struct {
 	SerialNumber *string `json:"serial_number"`
 	Manufacturer *string `json:"manufacturer"`
@@ -100,7 +101,7 @@ type Gpu struct {
 	Slots []GpuSlot `json:"slots"`
 }
 
-// GpuSlot GPU,uuid 为身份
+// GpuSlot is a GPU, uuid is the identity
 type GpuSlot struct {
 	UUID          *string `json:"uuid"`
 	Name          *string `json:"name"`

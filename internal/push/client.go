@@ -1,4 +1,4 @@
-// Package push CMDB API 推送客户端
+// Package push implements the CMDB API push client
 package push
 
 import (
@@ -11,7 +11,7 @@ import (
 	"iagent/internal/payload"
 )
 
-// Result 推送响应:result 三分支 created / unchanged / diff_created
+// Result is the push response: result has three branches, created / unchanged / diff_created
 type Result struct {
 	Result          string `json:"result"`
 	DeviceID        int    `json:"device_id"`
@@ -32,7 +32,7 @@ func NewClient(serverURL, token string) *Client {
 	}
 }
 
-// Push 推送设备数据 失败不重试(下个周期全量同步自然自愈)
+// Push pushes device data. No retry on failure (next cycle full sync self-heals)
 func (c *Client) Push(p *payload.Payload) (Result, error) {
 	body, err := json.Marshal(p)
 	if err != nil {

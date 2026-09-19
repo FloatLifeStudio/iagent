@@ -1,4 +1,4 @@
-// Package config 配置加载:命令行参数 > 配置文件 > 默认值。
+// Package config loads configuration: CLI flags > config file > defaults
 package config
 
 import (
@@ -10,17 +10,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ErrNoServerURL 缺少必填的 server_url。
+// ErrNoServerURL means the required server_url is missing
 var ErrNoServerURL = errors.New("server_url is required")
 
 type Config struct {
 	ServerURL string        `yaml:"server_url"`
-	Token     string        `yaml:"token"`    // 预留,icmdb 鉴权就绪后接入
-	Interval  time.Duration `yaml:"interval"` // 推送周期,用于生成 systemd timer
-	Timeout   time.Duration `yaml:"timeout"`  // HTTP 超时
+	Token     string        `yaml:"token"`    // reserved, wired in once icmdb auth is ready
+	Interval  time.Duration `yaml:"interval"` // push interval, used to generate the systemd timer
+	Timeout   time.Duration `yaml:"timeout"`  // HTTP timeout
 }
 
-// Load 加载配置。path 为空跳过文件;命令行参数覆盖配置文件;默认值兜底。
+// Load loads configuration. Empty path skips the file; CLI flags override the
+// file; defaults as fallback
 func Load(path, serverURL, token string) (Config, error) {
 	cfg := Config{Interval: 12 * time.Hour, Timeout: 30 * time.Second}
 	if path != "" {

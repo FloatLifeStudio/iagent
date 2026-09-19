@@ -7,7 +7,7 @@ import (
 	"iagent/internal/payload"
 )
 
-// lsblkJSON lsblk -bJ 的输出结构(只取需要的字段)。
+// lsblkJSON is the output structure of lsblk -bJ (only fields we need)
 type lsblkJSON struct {
 	BlockDevices []struct {
 		Name   string  `json:"name"`
@@ -15,12 +15,14 @@ type lsblkJSON struct {
 		Type   string  `json:"type"`
 		Model  *string `json:"model"`
 		Size   *int64  `json:"size"`
-		Rota   *bool   `json:"rota"` // lsblk -J 输出布尔值
+		Rota   *bool   `json:"rota"` // lsblk -J outputs booleans
 	} `json:"blockdevices"`
 }
 
-// CollectDisks 硬盘(lsblk -bJ JSON 输出,过滤 loop/ram 等非 disk 设备)。采集失败 → null。
-// type 按 ROTA 推断(1=HDD,0=SSD);manufacturer 从 model 解析不可靠,置 null 留待生产验证。
+// CollectDisks collects disks (lsblk -bJ JSON output, filters non-disk devices
+// such as loop/ram). Failure -> null.
+// type is inferred from ROTA (1=HDD, 0=SSD); manufacturer parsing from model is
+// unreliable, set to null pending production verification
 func CollectDisks() ([]payload.Disk, error) {
 	out, err := cmdOutput("lsblk", "-bJ", "-o", "NAME,SERIAL,TYPE,MODEL,SIZE,ROTA")
 	if err != nil {

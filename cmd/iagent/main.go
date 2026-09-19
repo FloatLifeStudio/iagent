@@ -1,5 +1,5 @@
-// iagent CMDB 硬件资产采集客户端(one-shot)
-// systemd timer 触发:采集 → 组装 → 推送 → 退出
+// iagent CMDB hardware asset collection client (one-shot).
+// Triggered by systemd timer: collect -> assemble -> push -> exit.
 package main
 
 import (
@@ -16,34 +16,34 @@ import (
 	"iagent/internal/push"
 )
 
-// 编译期注入版本号:-ldflags "-X main.version=0.1.0"
+// Version is injected at build time: -ldflags "-X main.version=0.1.0"
 var version = "dev"
 
-// defaultConfigTemplate 生成的默认配置模板,含全部选项与注释。
-// server_url 留空:首次正式运行会报错提示填写。
-const defaultConfigTemplate = `# iagent 配置文件。优先级:命令行参数 > 本文件 > 内置默认值。
-# 四个选项中只有 server_url 必填,其余可省略(省略走默认值)。
+// defaultConfigTemplate is written by --init, with all options documented.
+// server_url is left empty so the first real run fails with a clear hint.
+const defaultConfigTemplate = `# iagent config file. Priority: CLI flags > this file > built-in defaults.
+# Only server_url is required; all other options fall back to defaults.
 
-# CMDB API 地址(必填)
-# iagent 推送目标,即 icmdb 的 ingest 接口根地址,如 http://192.168.201.18:8080。
-# 留空或缺失会启动即失败(exit 1),不会推送。
+# CMDB API address (required)
+# Push target, the root URL of the icmdb ingest API, e.g. http://192.168.201.18:8080.
+# Empty or missing fails fast on startup (exit 1), nothing is pushed.
 server_url: ""
 
-# API token(可选,默认 "")
-# 鉴权预留位:icmdb 的 token 鉴权就绪后在此填入,
-# 请求头为 Authorization: Bearer <token>;为空则不带该 header,零改动接入。
+# API token (optional, default "")
+# Reserved for auth: fill in once icmdb token auth is ready.
+# Sent as "Authorization: Bearer <token>"; omitted when empty, zero-change integration.
 token: ""
 
-# 推送周期(可选,默认 12h)
-# 仅用于 Ansible 生成 systemd timer 的触发时刻,进程自身不读此值
-# (one-shot 进程由 timer 驱动,跑完即退)。
-# 支持 Go duration 格式:30m / 1h / 6h / 12h / 24h。
-# 建议 12h:与 CMDB 下线阈值 3 天咬合(≈ 6 次推送/阈值周期)。
+# Push interval (optional, default 12h)
+# Only used by Ansible to generate the systemd timer schedule; the process itself
+# never reads it (one-shot process is driven by the timer, exits after each run).
+# Accepts Go duration format: 30m / 1h / 6h / 12h / 24h.
+# 12h recommended: aligns with the CMDB offline threshold of 3 days (~6 pushes/cycle).
 interval: 12h
 
-# HTTP 超时(可选,默认 30s)
-# 单次 POST 推送的超时时间。超时按失败处理:记日志、不重试,
-# 下个周期全量同步自然自愈。
+# HTTP timeout (optional, default 30s)
+# Timeout for a single POST push. Timeout counts as failure: log, no retry,
+# the next cycle full sync self-heals.
 timeout: 30s
 `
 
@@ -51,37 +51,37 @@ func main() {
 	os.Exit(run())
 }
 
-// usage 帮助信息(默认不带参数时显示)。
+// usage prints help (shown when invoked without any arguments).
 func usage() {
-	fmt.Print(`iagent CMDB 硬件资产采集客户端(one-shot)
+	fmt.Print(`iagent CMDB hardware asset collection client (one-shot)
 
-用法:
-  iagent                     显示本帮助
-  iagent --print             测试模式:采集并打印 JSON 到 stdout(不推送)
-  iagent --init              生成默认配置文件(默认 /etc/iagent/config.yml,已存在则不覆盖)
-  iagent --config <path>     正式采集并推送到 CMDB(配置文件需含 server_url)
+Usage:
+  iagent                     show this help
+  iagent --print             test mode: collect and print JSON to stdout (no push)
+  iagent --init              generate default config file (default /etc/iagent/config.yml, never overwrites)
+  iagent --config <path>     collect and push to CMDB (config file must contain server_url)
 
-参数:
+Flags:
 `)
 	flag.PrintDefaults()
 	fmt.Print(`
-示例:
-  iagent --print                              # 采集一次,直接看 JSON
-  iagent --init                               # 生成配置模板,填好 server_url
-  iagent --config /etc/iagent/config.yml      # 正式采集推送(systemd timer 调用)
+Examples:
+  iagent --print                              # collect once, print JSON directly
+  iagent --init                               # generate config template, then fill in server_url
+  iagent --config /etc/iagent/config.yml      # real collect and push (invoked by systemd timer)
 `)
 }
 
 func run() int {
-	configPath := flag.String("config", "", "配置文件路径(默认 /etc/iagent/config.yml)")
-	serverURL := flag.String("server", "", "CMDB API 地址,如 http://192.168.201.18:8080")
-	token := flag.String("token", "", "API token(预留)")
-	initConfig := flag.Bool("init", false, "生成默认配置文件(已存在则不覆盖)")
-	printOnly := flag.Bool("print", false, "只采集并打印 JSON 到 stdout,不推送、不需要配置文件(测试用)")
+	configPath := flag.String("config", "", "config file path (default /etc/iagent/config.yml)")
+	serverURL := flag.String("server", "", "CMDB API address, e.g. http://192.168.201.18:8080")
+	token := flag.String("token", "", "API token (reserved)")
+	initConfig := flag.Bool("init", false, "generate default config file (never overwrites)")
+	printOnly := flag.Bool("print", false, "collect and print JSON to stdout, no push, no config file needed (test mode)")
 	flag.Usage = usage
 	flag.Parse()
 
-	// 默认(不带任何参数):显示帮助
+	// Default (no arguments): show help
 	if !*initConfig && !*printOnly && *configPath == "" && *serverURL == "" && *token == "" {
 		flag.Usage()
 		return 0
@@ -94,7 +94,7 @@ func run() int {
 		return writeDefaultConfig(*configPath)
 	}
 
-	// --print 测试模式:不读配置文件,采集后直接打印
+	// --print test mode: skip config file, collect then print
 	if *printOnly {
 		return printPayload()
 	}
@@ -125,15 +125,16 @@ func run() int {
 	return 0
 }
 
-// collectAndBuild 采集并组装推送体。hostname 失败是唯一硬失败。
+// collectAndBuild collects and assembles the payload. hostname failure is the only hard failure.
 func collectAndBuild() (payload.Payload, error) {
-	// hostname 失败是唯一硬失败:中止,不推送
+	// hostname failure is the only hard failure: abort, do not push
 	osInfo, err := collector.CollectOS()
 	if err != nil {
 		return payload.Payload{}, fmt.Errorf("collect os: %w", err)
 	}
 
-	// 其余类别独立采集,单字段失败已在 collector 内置 null
+	// Other categories are collected independently; single-field failures are already
+	// mapped to null inside the collector
 	mgmt, _ := collector.CollectMgmt()
 	hw, _ := collector.CollectHardware()
 
@@ -149,7 +150,7 @@ func collectAndBuild() (payload.Payload, error) {
 	return p, nil
 }
 
-// printPayload --print 测试模式:采集后直接打印 JSON,不推送、不需要配置文件。
+// printPayload implements the --print test mode: collect then print JSON, no push, no config file.
 func printPayload() int {
 	p, err := collectAndBuild()
 	if err != nil {
@@ -165,11 +166,11 @@ func printPayload() int {
 	return 0
 }
 
-// writeDefaultConfig 生成默认配置文件(--init 子命令)。
-// 幂等:文件已存在则不覆盖,提示后退出。
+// writeDefaultConfig generates the default config file (--init subcommand).
+// Idempotent: refuses to overwrite an existing file, exits with a hint.
 func writeDefaultConfig(path string) int {
 	if _, err := os.Stat(path); err == nil {
-		fmt.Printf("[INFO] config already exists: %s (不覆盖;如需重新生成请先删除)\n", path)
+		fmt.Printf("[INFO] config already exists: %s (not overwritten; delete it first to regenerate)\n", path)
 		return 0
 	}
 	dir := filepath.Dir(path)
@@ -182,6 +183,6 @@ func writeDefaultConfig(path string) int {
 		return 1
 	}
 	fmt.Printf("[INFO] config written: %s\n", path)
-	fmt.Printf("[INFO] 填好 server_url 后运行 iagent 正式采集\n")
+	fmt.Printf("[INFO] fill in server_url, then run iagent to start collecting\n")
 	return 0
 }

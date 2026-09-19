@@ -1,4 +1,4 @@
-"""一次性诊断:发送密码后打印服务器全部响应,不重试。"""
+"""One-shot diagnosis: send the password and print the full server response, no retry."""
 import pexpect
 import sys
 
@@ -10,13 +10,13 @@ child = pexpect.spawn(
     timeout=15, encoding="utf-8")
 child.expect(["assword:", pexpect.TIMEOUT], timeout=15)
 child.sendline(PASSWORD)
-# 只等待 10 秒,打印服务器全部响应,不做任何重试
+# wait 10 seconds only, print the full server response, no retry at all
 try:
     child.expect([pexpect.TIMEOUT, pexpect.EOF], timeout=10)
 except Exception:
     pass
-print("=== 服务器响应原文 ===")
+print("=== raw server response ===")
 print(child.before)
-print("=== 连接状态 ===")
+print("=== connection status ===")
 print("closed:", child.closed)
 child.close(force=True)

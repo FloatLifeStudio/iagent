@@ -1,5 +1,5 @@
-// 阶段 0 原型:验证 DEVELOPMENT_PLAN.md 2.2 表中各字段的可得性
-// 仅用于验证,不属于交付代码
+// Phase 0 prototype: verify field availability in DEVELOPMENT_PLAN.md 2.2 table
+// For verification only, not part of the deliverable
 package main
 
 import (
@@ -56,7 +56,7 @@ func main() {
 		checks = append(checks, check{"os.*", "gopsutil host", "", err})
 	}
 
-	// --- hardware.chassis_serial_number(/sys/class/dmi/id)---
+	// --- hardware.chassis_serial_number (/sys/class/dmi/id) ---
 	if b, err := os.ReadFile("/sys/class/dmi/id/product_serial"); err == nil {
 		checks = append(checks, check{"hardware.chassis_serial (root)", "/sys/class/dmi/id", strings.TrimSpace(string(b)), nil})
 	} else {
@@ -68,29 +68,29 @@ func main() {
 		checks = append(checks, check{"hardware.product_name", "/sys/class/dmi/id", "", err})
 	}
 
-	// --- memory 总量(gopsutil)---
+	// --- memory total (gopsutil) ---
 	if m, err := mem.VirtualMemory(); err == nil {
 		checks = append(checks, check{"memory.total", "gopsutil mem", fmt.Sprintf("%d GB", m.Total/1024/1024/1024), nil})
 	} else {
 		checks = append(checks, check{"memory.total", "gopsutil mem", "", err})
 	}
 
-	// --- memory 槽位级(dmidecode,root)---
+	// --- memory slots (dmidecode, root) ---
 	if out, err := cmdOutput("dmidecode", "-t", "memory"); err == nil {
 		n := strings.Count(out, "Memory Device")
-		checks = append(checks, check{"memory.slots (root)", "dmidecode -t memory", fmt.Sprintf("%d Memory Device 条目", n), nil})
+		checks = append(checks, check{"memory.slots (root)", "dmidecode -t memory", fmt.Sprintf("%d Memory Device entries", n), nil})
 	} else {
 		checks = append(checks, check{"memory.slots (root)", "dmidecode -t memory", "", err})
 	}
 
 	// --- cpu ---
 	if infos, err := cpu.Info(); err == nil && len(infos) > 0 {
-		checks = append(checks, check{"cpus[].model", "gopsutil cpu", fmt.Sprintf("%d 颗: %s", len(infos), infos[0].ModelName), nil})
+		checks = append(checks, check{"cpus[].model", "gopsutil cpu", fmt.Sprintf("%d sockets: %s", len(infos), infos[0].ModelName), nil})
 	} else {
 		checks = append(checks, check{"cpus[].model", "gopsutil cpu", "", err})
 	}
 
-	// --- nics(gopsutil)---
+	// --- nics (gopsutil) ---
 	if ios, err := net.IOCounters(true); err == nil {
 		names := make([]string, 0, len(ios))
 		for _, io := range ios {
@@ -104,40 +104,40 @@ func main() {
 		checks = append(checks, check{"hardware.nics", "gopsutil net", "", err})
 	}
 
-	// --- disks(lsblk)---
+	// --- disks (lsblk) ---
 	if out, err := cmdOutput("lsblk", "-bndo", "NAME,SERIAL"); err == nil {
 		lines := strings.Split(out, "\n")
-		checks = append(checks, check{"hardware.disks[].serial", "lsblk", fmt.Sprintf("%d 块: %s", len(lines), strings.Join(lines[:min(3, len(lines))], " | ")), nil})
+		checks = append(checks, check{"hardware.disks[].serial", "lsblk", fmt.Sprintf("%d disks: %s", len(lines), strings.Join(lines[:min(3, len(lines))], " | ")), nil})
 	} else {
 		checks = append(checks, check{"hardware.disks[].serial", "lsblk", "", err})
 	}
 
-	// --- psus(dmidecode type 39,root)---
+	// --- psus (dmidecode type 39, root) ---
 	if out, err := cmdOutput("dmidecode", "-t", "39"); err != nil {
 		checks = append(checks, check{"hardware.psus (root)", "dmidecode -t 39", "", err})
 	} else if strings.Contains(out, "No suitable") || len(strings.TrimSpace(out)) < 50 {
-		checks = append(checks, check{"hardware.psus (root)", "dmidecode -t 39", "无信息(空表)", nil})
+		checks = append(checks, check{"hardware.psus (root)", "dmidecode -t 39", "no info (empty table)", nil})
 	} else {
 		checks = append(checks, check{"hardware.psus (root)", "dmidecode -t 39", strings.Split(out, "\n")[2], nil})
 	}
 
-	// --- gpu(nvidia-smi)---
+	// --- gpu (nvidia-smi) ---
 	if _, err := cmdOutput("nvidia-smi", "--version"); err != nil {
-		checks = append(checks, check{"hardware.gpu (root)", "nvidia-smi", "nvidia-smi 不存在(本机无 GPU?)", nil})
+		checks = append(checks, check{"hardware.gpu (root)", "nvidia-smi", "nvidia-smi not found (no GPU on this machine?)", nil})
 	} else if out, err := cmdOutput("nvidia-smi", "--query-gpu=uuid,name,serial_number,memory.total,driver_version,pci.bus_id", "--format=csv,noheader,nounits"); err != nil {
 		checks = append(checks, check{"hardware.gpu (root)", "nvidia-smi --query-gpu", "", err})
 	} else {
 		checks = append(checks, check{"hardware.gpu (root)", "nvidia-smi --query-gpu", strings.Split(out, "\n")[0], nil})
 	}
 
-	// --- mgmt(ipmitool)---
+	// --- mgmt (ipmitool) ---
 	if out, err := cmdOutput("ipmitool", "lan", "print"); err != nil {
-		checks = append(checks, check{"mgmt (root)", "ipmitool lan print", "ipmitool 不存在或不可用", nil})
+		checks = append(checks, check{"mgmt (root)", "ipmitool lan print", "ipmitool missing or unavailable", nil})
 	} else {
 		checks = append(checks, check{"mgmt (root)", "ipmitool lan print", strings.Split(out, "\n")[0], nil})
 	}
 
-	fmt.Println("=== iagent 阶段 0 字段可得性验证 ===")
+	fmt.Println("=== iagent phase 0 field availability check ===")
 	fmt.Println()
 	for _, c := range checks {
 		report(c)

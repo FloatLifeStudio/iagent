@@ -12,7 +12,8 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectOS os 组:hostname 失败返回 error(整个流程中止),其余字段失败置 null。
+// CollectOS collects the os group: hostname failure returns an error
+// (aborts the whole flow), other field failures are set to null
 func CollectOS() (payload.OS, error) {
 	out, err := exec.Command("hostname", "-f").Output()
 	if err != nil {
@@ -33,7 +34,7 @@ func CollectOS() (payload.OS, error) {
 	return os, nil
 }
 
-// osReleasePrettyName 从 /etc/os-release 读 PRETTY_NAME,如 "Ubuntu 22.04.5 LTS"。
+// osReleasePrettyName reads PRETTY_NAME from /etc/os-release, e.g. "Ubuntu 22.04.5 LTS"
 func osReleasePrettyName() string {
 	f, err := os.Open("/etc/os-release")
 	if err != nil {
@@ -49,9 +50,10 @@ func osReleasePrettyName() string {
 	return ""
 }
 
-// detectVirt 虚拟化类型检测:systemd-detect-virt > DMI sys_vendor > bare_metal。
-// 不用 gopsutil host.Virtualization:其启发式(/proc/modules 等)在未加载
-// guest 内核模块的 VM 上会误报 bare_metal(本机 VMware VM 已踩坑验证)。
+// detectVirt detects virtualization: systemd-detect-virt > DMI sys_vendor > bare_metal.
+// Does not use gopsutil host.Virtualization: its heuristics (/proc/modules etc.)
+// misreport bare_metal on VMs without guest kernel modules loaded (verified on
+// the local VMware VM)
 func detectVirt() string {
 	if out, err := cmdOutput("systemd-detect-virt"); err == nil && out != "" {
 		if out == "none" {
@@ -59,7 +61,7 @@ func detectVirt() string {
 		}
 		return out
 	}
-	// 兜底:DMI sys_vendor(老系统无 systemd-detect-virt 时)
+	// Fallback: DMI sys_vendor (for old systems without systemd-detect-virt)
 	if b, err := os.ReadFile("/sys/class/dmi/id/sys_vendor"); err == nil {
 		vendor := strings.ToLower(strings.TrimSpace(string(b)))
 		for _, kv := range [][2]string{

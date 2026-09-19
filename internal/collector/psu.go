@@ -6,8 +6,10 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectPsus 电源(dmidecode -t 39 System Power Supply)。采集失败 → null。
-// 注意:dmidecode type 39 在很多机器上无 Serial Number 字段,SN 身份问题留待生产验证。
+// CollectPsus collects power supplies (dmidecode -t 39 System Power Supply).
+// Failure -> null.
+// Note: dmidecode type 39 has no Serial Number field on many machines, PSU SN
+// identity pending production verification
 func CollectPsus() ([]payload.Psu, error) {
 	out, err := cmdOutput("dmidecode", "-t", "39")
 	if err != nil {
@@ -16,7 +18,7 @@ func CollectPsus() ([]payload.Psu, error) {
 	var psus []payload.Psu
 	for _, block := range strings.Split(out, "System Power Supply")[1:] {
 		fields := parseColonFields(block)
-		// 未插电源的空槽(Status: Not Present)跳过,同内存条 "No Module" 的处理
+		// skip empty slots (Status: Not Present), same as memory "No Module"
 		if fields["Status"] == "Not Present" {
 			continue
 		}
@@ -25,7 +27,8 @@ func CollectPsus() ([]payload.Psu, error) {
 			Manufacturer: normStr(fields["Manufacturer"]),
 			Model:        normStr(fields["Name"]),
 		}
-		// dmidecode 版本差异:3.3 用 "Max Power Capacity",新版用 "Maximum Power Capacity"
+		// dmidecode version difference: 3.3 uses "Max Power Capacity", newer uses
+		// "Maximum Power Capacity"
 		capacity := fields["Maximum Power Capacity"]
 		if capacity == "" {
 			capacity = fields["Max Power Capacity"]

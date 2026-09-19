@@ -1,4 +1,5 @@
-# 目标机清单示例;真实清单(ansible/inventory.yml)在 .gitignore 中排除
+# Target host inventory example; the real inventory (ansible/inventory.yml) is
+# excluded from git via .gitignore
 [cmdb_targets]
 192.168.10.101 ansible_user=root
 192.168.10.102 ansible_user=root

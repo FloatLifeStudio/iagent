@@ -1,5 +1,6 @@
-// Package collector 各类别独立采集,单字段失败置 null,不中断其他类别。
-// 仅 os 组的 hostname 失败返回 error(整个推送流程中止)。
+// Package collector collects each category independently; a single-field
+// failure is set to null without interrupting other categories.
+// Only os group hostname failure returns an error (aborts the whole push).
 package collector
 
 import (
@@ -8,7 +9,8 @@ import (
 	"strings"
 )
 
-// strPtr 有值返回指针,空串返回 nil(空值视为未采集 → JSON null)。
+// strPtr returns a pointer for non-empty strings, nil for empty
+// (empty counts as not collected -> JSON null)
 func strPtr(s string) *string {
 	if strings.TrimSpace(s) == "" {
 		return nil
@@ -16,7 +18,8 @@ func strPtr(s string) *string {
 	return &s
 }
 
-// normStr 采纳 dg-agent 的 _normalize 思路:Unknown/None/N/A 等占位值视为未采集。
+// normStr follows dg-agent's _normalize idea: placeholder values like
+// Unknown/None/N/A count as not collected
 func normStr(s string) *string {
 	switch strings.TrimSpace(s) {
 	case "", "Unknown", "unknown", "None", "N/A", "NA", "[N/A]", "No", "none", "NULL", "null", "Not Specified":
@@ -37,7 +40,7 @@ func cmdOutput(name string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// parseColonFields 解析 "Key: Value" 风格的命令输出(ipmitool / dmidecode)。
+// parseColonFields parses "Key: Value" style command output (ipmitool / dmidecode)
 func parseColonFields(out string) map[string]string {
 	fields := map[string]string{}
 	for _, line := range strings.Split(out, "\n") {
@@ -50,7 +53,7 @@ func parseColonFields(out string) map[string]string {
 	return fields
 }
 
-// leadingInt 取字符串开头的整数,如 "4800 MT/s" → 4800。
+// leadingInt takes the integer at the start of a string, e.g. "4800 MT/s" -> 4800
 func leadingInt(s string) (int, bool) {
 	i := 0
 	for i < len(s) && s[i] >= '0' && s[i] <= '9' {

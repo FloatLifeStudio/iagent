@@ -1,5 +1,6 @@
-// Package normalize 容量归一化:统一 size + size_unit,GB/TB 中数值 ≥ 1 的最大单位,
-// 结果必须为整数(设备容量均为 2ⁿ,不出现小数),mb 一律不再出现。
+// Package normalize unifies capacity into size + size_unit: the largest unit
+// among GB/TB with value >= 1, integer results only (device capacities are all
+// powers of two, no decimals), mb never appears.
 package normalize
 
 import (
@@ -13,9 +14,10 @@ const (
 	tb = 1 << 40
 )
 
-// NormalizeCapacity 输入字节数,输出 size 与 size_unit。
-//   1024MB → 1 GB;16384MB → 16 GB;81920MB → 80 GB;8TB → 8 TB
-// 输入无法整数化时向上取整并记日志(设备容量均为 2ⁿ,理论上不出现)。
+// NormalizeCapacity takes bytes and returns size and size_unit.
+//   1024MB -> 1 GB; 16384MB -> 16 GB; 81920MB -> 80 GB; 8TB -> 8 TB
+// Rounds up and logs when the input cannot be integer-ized (device capacities
+// are all powers of two, should not happen in practice)
 func NormalizeCapacity(bytes int64) (int64, string) {
 	if bytes <= 0 {
 		log.Printf("[WARN] normalize: non-positive capacity %d, fallback to 1 GB", bytes)
@@ -36,12 +38,13 @@ func ceilDiv(a, b int64) int64 {
 	return a/b + 1
 }
 
-// ParseSizeToBytes 解析 dmidecode/lsblk 的容量字符串(如 "64 GB"、"16384 MB")为字节数。
+// ParseSizeToBytes parses dmidecode/lsblk capacity strings (e.g. "64 GB",
+// "16384 MB") into bytes
 func ParseSizeToBytes(s string) (int64, error) {
 	var n int64
 	var unit string
 	if _, err := fmt.Sscanf(s, "%d %s", &n, &unit); err != nil {
-		// 纯数字(无单位)按 MiB 处理(nvidia-smi nounits 风格)
+		// bare number (no unit) counts as MiB (nvidia-smi nounits style)
 		if _, err := fmt.Sscanf(s, "%d", &n); err == nil {
 			return n * 1024 * 1024, nil
 		}

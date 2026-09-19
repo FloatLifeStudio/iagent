@@ -1,4 +1,5 @@
-"""阶段 0 连接辅助:用 pexpect 处理 JumpServer 的密码 + OTP 多步提示,建立 ControlMaster 主连接。"""
+"""Phase 0 connection helper: use pexpect to handle JumpServer password + OTP
+multi-step prompts, establish a ControlMaster main connection."""
 import pexpect
 import sys
 

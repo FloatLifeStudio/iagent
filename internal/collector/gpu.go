@@ -8,8 +8,9 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectGpus GPU(nvidia-smi --query-gpu)。nvidia-smi 不存在或失败 → null(机器无 GPU 也 null)。
-// 注意:SN 的字段名是 serial(不是 serial_number,驱动会拒绝该查询)。
+// CollectGpus collects GPUs (nvidia-smi --query-gpu). nvidia-smi missing or
+// failure -> null (machines without GPU are also null).
+// Note: the SN field name is serial (not serial_number, the driver rejects it)
 func CollectGpus() (payload.Gpu, error) {
 	out, err := cmdOutput("nvidia-smi",
 		"--query-gpu=uuid,gpu_name,serial,memory.total,driver_version,pci.bus_id",
@@ -37,7 +38,7 @@ func CollectGpus() (payload.Gpu, error) {
 }
 
 func fillGpuSize(slot *payload.GpuSlot, mibStr string) {
-	// memory.total 以 nounits 输出 MiB 数值
+	// memory.total outputs MiB values with nounits
 	mib, err := strconv.ParseInt(mibStr, 10, 64)
 	if err != nil {
 		return

@@ -6,7 +6,8 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectMgmt 带外管理口信息(ipmitool)。ipmitool 不存在或失败 → 字段全 null。
+// CollectMgmt collects out-of-band management port info (ipmitool).
+// ipmitool missing or failure -> all fields null
 func CollectMgmt() (payload.Mgmt, error) {
 	m := payload.Mgmt{}
 	out, err := cmdOutput("ipmitool", "lan", "print")
@@ -15,7 +16,7 @@ func CollectMgmt() (payload.Mgmt, error) {
 	}
 	fields := parseColonFields(out)
 	m.MAC = strPtr(fields["MAC Address"])
-	// BMC IP 未分配时 ipmitool 输出 0.0.0.0,视为未采集
+	// ipmitool outputs 0.0.0.0 when the BMC IP is unassigned, count as not collected
 	if ipStr := fields["IP Address"]; ipStr != "" && ipStr != "0.0.0.0" {
 		m.IP = strPtr(ipStr)
 	}

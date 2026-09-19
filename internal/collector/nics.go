@@ -9,7 +9,7 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectNics 网卡列表(排除 lo)。采集失败 → nil(JSON null)。
+// CollectNics collects NIC list (excludes lo). Failure -> nil (JSON null)
 func CollectNics() ([]payload.Nic, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -25,7 +25,7 @@ func CollectNics() ([]payload.Nic, error) {
 			nic.MAC = strPtr(ifc.HardwareAddr)
 		}
 		for _, addr := range ifc.Addrs {
-			// addr.Addr 为 CIDR 形式,如 "10.10.1.101/24"
+			// addr.Addr is CIDR form, e.g. "10.10.1.101/24"
 			ip, ipStr, _ := strings.Cut(addr.Addr, "/")
 			nicIP := payload.NicIP{IP: ip}
 			if ip == addr.Addr {

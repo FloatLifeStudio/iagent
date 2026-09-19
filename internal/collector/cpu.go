@@ -6,8 +6,9 @@ import (
 	"iagent/internal/payload"
 )
 
-// CollectCpus CPU 槽位级信息(dmidecode -t processor,Socket Designation 为身份)。
-// 未安装的槽位(unpopulated)跳过;采集失败 → null。
+// CollectCpus collects per-socket CPU info (dmidecode -t processor,
+// Socket Designation as identity).
+// Skips unpopulated slots; failure -> null
 func CollectCpus() ([]payload.CpuSlot, error) {
 	out, err := cmdOutput("dmidecode", "-t", "processor")
 	if err != nil {
