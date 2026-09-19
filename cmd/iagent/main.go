@@ -51,21 +51,56 @@ func main() {
 	os.Exit(run())
 }
 
+// usage 帮助信息(默认不带参数时显示)。
+func usage() {
+	fmt.Print(`iagent CMDB 硬件资产采集客户端(one-shot)
+
+用法:
+  iagent                     显示本帮助
+  iagent --print             测试模式:采集并打印 JSON 到 stdout(不推送)
+  iagent --init              生成默认配置文件(默认 /etc/iagent/config.yml,已存在则不覆盖)
+  iagent --config <path>     正式采集并推送到 CMDB(配置文件需含 server_url)
+
+参数:
+`)
+	flag.PrintDefaults()
+	fmt.Print(`
+示例:
+  iagent --print                              # 采集一次,直接看 JSON
+  iagent --init                               # 生成配置模板,填好 server_url
+  iagent --config /etc/iagent/config.yml      # 正式采集推送(systemd timer 调用)
+`)
+}
+
 func run() int {
-	configPath := flag.String("config", "/etc/iagent/config.yml", "配置文件路径")
+	configPath := flag.String("config", "", "配置文件路径(默认 /etc/iagent/config.yml)")
 	serverURL := flag.String("server", "", "CMDB API 地址,如 http://192.168.201.18:8080")
 	token := flag.String("token", "", "API token(预留)")
 	initConfig := flag.Bool("init", false, "生成默认配置文件(已存在则不覆盖)")
 	printOnly := flag.Bool("print", false, "只采集并打印 JSON 到 stdout,不推送、不需要配置文件(测试用)")
+	flag.Usage = usage
 	flag.Parse()
 
+	// 默认(不带任何参数):显示帮助
+	if !*initConfig && !*printOnly && *configPath == "" && *serverURL == "" && *token == "" {
+		flag.Usage()
+		return 0
+	}
+
 	if *initConfig {
+		if *configPath == "" {
+			*configPath = "/etc/iagent/config.yml"
+		}
 		return writeDefaultConfig(*configPath)
 	}
 
 	// --print 测试模式:不读配置文件,采集后直接打印
 	if *printOnly {
 		return printPayload()
+	}
+
+	if *configPath == "" {
+		*configPath = "/etc/iagent/config.yml"
 	}
 
 	cfg, err := config.Load(*configPath, *serverURL, *token)
