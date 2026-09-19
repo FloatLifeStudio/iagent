@@ -26,7 +26,7 @@ func CollectCpus() ([]payload.CpuSlot, error) {
 		}
 		cpus = append(cpus, payload.CpuSlot{
 			Slot:  strPtr(socket),
-			Model: strPtr(fields["Version"]),
+			Model: normStr(fields["Version"]),
 		})
 	}
 	return cpus, nil

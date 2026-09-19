@@ -27,10 +27,10 @@ func parseMemorySlots(out string) []payload.MemorySlot {
 		}
 		slot := payload.MemorySlot{
 			Slot:         strPtr(fields["Locator"]),
-			Manufacturer: strPtr(fields["Manufacturer"]),
-			PartNumber:   strPtr(fields["Part Number"]),
-			Type:         strPtr(fields["Type"]),
-			SerialNumber: strPtr(fields["Serial Number"]),
+			Manufacturer: normStr(fields["Manufacturer"]),
+			PartNumber:   normStr(fields["Part Number"]),
+			Type:         normStr(fields["Type"]),
+			SerialNumber: normStr(fields["Serial Number"]),
 		}
 		if bytes, err := normalize.ParseSizeToBytes(size); err == nil {
 			s, unit := normalize.NormalizeCapacity(bytes)
