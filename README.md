@@ -1,6 +1,6 @@
 # iagent
 
-iCMDB 硬件资产采集客户端——Go 单文件程序(one-shot),部署于被管服务器,systemd timer 定时采集硬件/系统信息推送到 icmdb
+iCMDB 硬件资产采集客户端--Go 单文件程序(one-shot),部署于被管服务器,systemd timer 定时采集硬件/系统信息推送到 icmdb
 
 ## 快速开始
 
@@ -15,7 +15,7 @@ sudo ./dist/iagent-0.1.0 --config /etc/iagent/config.yml
 cd ansible && ansible-playbook -i inventory.yml playbook.yml
 ```
 
-详细构建配置、部署安装、运行验证、问题排查见 **[使用手册](docs/USAGE.md)**。
+详细构建配置,部署安装,运行验证,问题排查见 **[使用手册](docs/USAGE.md)**
 
 ## 链路
 
@@ -29,8 +29,8 @@ cd ansible && ansible-playbook -i inventory.yml playbook.yml
 
 ## 文档
 
-- [使用手册](docs/USAGE.md)——构建配置、部署安装、运行验证、问题排查
-- [开发计划](docs/DEVELOPMENT_PLAN.md)——需求总结、分阶段计划、风险与里程碑
-- [总体架构](docs/ARCHITECTURE.md)——系统全景、数据流、部署架构、目录结构
-- [详细设计](docs/DESIGN.md)——代码级设计,模块接口与类型定义
-- [推送体基准](docs/PAYLOAD_EXAMPLE.md)——推送 JSON 完整示例与关键规则
+- [使用手册](docs/USAGE.md)--构建配置,部署安装,运行验证,问题排查
+- [开发计划](docs/DEVELOPMENT_PLAN.md)--需求总结,分阶段计划,风险与里程碑
+- [总体架构](docs/ARCHITECTURE.md)--系统全景,数据流,部署架构,目录结构
+- [详细设计](docs/DESIGN.md)--代码级设计,模块接口与类型定义
+- [推送体基准](docs/PAYLOAD_EXAMPLE.md)--推送 JSON 完整示例与关键规则

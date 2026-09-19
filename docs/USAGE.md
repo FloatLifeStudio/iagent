@@ -1,11 +1,11 @@
 # iagent 使用手册
 
-> 构建配置、部署安装、托管运维、运行验证、问题排查。
-> 设计与需求背景见 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) / [ARCHITECTURE.md](./ARCHITECTURE.md)。
+> 构建配置,部署安装,托管运维,运行验证,问题排查
+> 设计与需求背景见 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) / [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ---
 
-## 一、本地构建
+## 一,本地构建
 
 ```bash
 # 依赖:Go 1.26+
@@ -21,39 +21,39 @@ CGO_ENABLED=0 go build -ldflags "-X main.version=0.1.0" -o dist/iagent-0.1.0 ./c
 gzip -f -9 dist/iagent-0.1.0
 ```
 
-`CGO_ENABLED=0` 产出纯静态二进制,可直接拷贝到目标机(含老系统)运行,无运行时依赖。
+`CGO_ENABLED=0` 产出纯静态二进制,可直接拷贝到目标机(含老系统)运行,无运行时依赖
 
-> **坑**:分发前必须先重新构建再上传,不要直接用 `dist/` 下可能落后于源码的旧二进制。上传后可用 `md5sum` 与本地比对确认版本一致。
+> **坑**:分发前必须先重新构建再上传,不要直接用 `dist/` 下可能落后于源码的旧二进制上传后可用 `md5sum` 与本地比对确认版本一致
 
-## 二、配置
+## 二,配置
 
-配置文件位于 `/etc/iagent/config.yml`,YAML 格式。**完整配置文件**(含全部选项与注释):
+配置文件位于 `/etc/iagent/config.yml`,YAML 格式**完整配置文件**(含全部选项与注释):
 
 ```yaml
 # /etc/iagent/config.yml
-# iagent 配置文件。优先级:命令行参数 > 本文件 > 内置默认值。
-# 四个选项中只有 server_url 必填,其余可省略(省略走默认值)。
+# iagent 配置文件优先级:命令行参数 > 本文件 > 内置默认值
+# 四个选项中只有 server_url 必填,其余可省略(省略走默认值)
 
 # CMDB API 地址(必填)
-# iagent 推送目标,即 icmdb 的 ingest 接口根地址。
-# 留空或缺失会启动即失败(exit 1),不会推送。
+# iagent 推送目标,即 icmdb 的 ingest 接口根地址
+# 留空或缺失会启动即失败(exit 1),不会推送
 server_url: http://192.168.201.18:8080
 
 # API token(可选,默认 "")
 # 鉴权预留位:icmdb 的 token 鉴权就绪后在此填入,
-# 请求头为 Authorization: Bearer <token>;为空则不带该 header,零改动接入。
+# 请求头为 Authorization: Bearer <token>;为空则不带该 header,零改动接入
 token: ""
 
 # 推送周期(可选,默认 12h)
 # 仅用于 Ansible 生成 systemd timer 的触发时刻,进程自身不读此值
-# (one-shot 进程由 timer 驱动,跑完即退)。
-# 支持 Go duration 格式:30m / 1h / 6h / 12h / 24h。
-# 建议 12h:与 CMDB 下线阈值 3 天咬合(≈ 6 次推送/阈值周期)。
+# (one-shot 进程由 timer 驱动,跑完即退)
+# 支持 Go duration 格式:30m / 1h / 6h / 12h / 24h
+# 建议 12h:与 CMDB 下线阈值 3 天咬合(≈ 6 次推送/阈值周期)
 interval: 12h
 
 # HTTP 超时(可选,默认 30s)
-# 单次 POST 推送的超时时间。超时按失败处理:记日志、不重试,
-# 下个周期全量同步自然自愈。
+# 单次 POST 推送的超时时间超时按失败处理:记日志,不重试,
+# 下个周期全量同步自然自愈
 timeout: 30s
 ```
 
@@ -64,11 +64,11 @@ timeout: 30s
 | (无参数) | - | **显示帮助** |
 | `--config` | `/etc/iagent/config.yml` | 配置文件路径;传 `/dev/null` 可跳过文件(仅用参数 + 默认值) |
 | `--init` | - | **生成默认配置文件**到 `--config` 路径(带全部注释);已存在则不覆盖;生成后填好 `server_url` 再正式运行 |
-| `--print` | - | **测试模式**:采集 → 组装 → 打印 JSON 到 stdout,**不推送、不读配置文件、不需要 `server_url`**;用于不等 12h 直接看采集结果 |
+| `--print` | - | **测试模式**:采集 → 组装 → 打印 JSON 到 stdout,**不推送,不读配置文件,不需要 `server_url`**;用于不等 12h 直接看采集结果 |
 | `--server` | - | CMDB API 地址,**覆盖**配置文件的 `server_url` |
 | `--token` | - | API token,**覆盖**配置文件的 `token` |
 
-> `--print` 与 `--init` 不读配置文件;只有正式推送路径(显式传 `--config` 等)才需要配置。
+> `--print` 与 `--init` 不读配置文件;只有正式推送路径(显式传 `--config` 等)才需要配置
 
 ### 2.2 配置校验行为
 
@@ -77,9 +77,9 @@ timeout: 30s
 - 配置文件不存在 → 读文件报错退出;确认路径后再启动
 - YAML 格式错误 → 解析报错退出,错误信息带文件路径
 
-## 三、在新机器上部署(手动,分步)
+## 三,在新机器上部署(手动,分步)
 
-> 完整走一遍:一台全新机器从零到接入 CMDB 托管采集。Ansible 批量部署见第四节,单机或少量机器用本节。
+> 完整走一遍:一台全新机器从零到接入 CMDB 托管采集Ansible 批量部署见第四节,单机或少量机器用本节
 
 ### 3.0 前置条件检查
 
@@ -153,7 +153,7 @@ sudo vim /etc/iagent/config.yml
 # server_url: http://192.168.201.18:8080
 ```
 
-> `--init` 幂等:配置文件已存在则不覆盖(提示后退出,exit 0);重新生成需先删除旧文件。也可以自定义路径:`iagent --init --config /path/to/config.yml`。
+> `--init` 幂等:配置文件已存在则不覆盖(提示后退出,exit 0);重新生成需先删除旧文件也可以自定义路径:`iagent --init --config /path/to/config.yml`
 
 ### 3.4 首次手动运行(验证能采能推)
 
@@ -169,7 +169,7 @@ sudo /usr/local/bin/iagent --config /etc/iagent/config.yml
 | `[INFO] push ok: result=unchanged device_id=N ...` | 成功,字段无差异(重复跑会看到这个) |
 | `[ERROR] ...` + 退出码 1 | 失败,按第八节排查;常见为 CMDB 不可达或 hostname 为空 |
 
-> 此时不接 systemd 也可以先多跑几次,确认各字段采集正常(在 CMDB 或推送目标侧查看 payload 字段),再进入托管。
+> 此时不接 systemd 也可以先多跑几次,确认各字段采集正常(在 CMDB 或推送目标侧查看 payload 字段),再进入托管
 
 **快速看采集结果**(测试模式,不推送):
 
@@ -181,7 +181,7 @@ sudo iagent --print
 sudo iagent --print | jq '.hardware.gpu'
 ```
 
-`--print` 走完整的采集 → 归一化 → 组装流程,只是把最后的推送换成打印 JSON,结果即推送给 CMDB 的内容。`--print` 不读配置文件、不需要 `server_url`,在任何机器上开箱即用。
+`--print` 走完整的采集 → 归一化 → 组装流程,只是把最后的推送换成打印 JSON,结果即推送给 CMDB 的内容`--print` 不读配置文件,不需要 `server_url`,在任何机器上开箱即用
 
 ### 3.5 安装系统托管(systemd timer)
 
@@ -199,7 +199,7 @@ sudo systemctl enable --now iagent.timer
 两个单元的分工(`systemd/iagent/`):
 
 ```ini
-# iagent.service —— 真正干活的(oneshot:采集 → 推送 → 退出)
+# iagent.service -- 真正干活的(oneshot:采集 → 推送 → 退出)
 [Service]
 Type=oneshot                              # 跑完即退,不常驻
 ExecStart=/usr/local/bin/iagent --config /etc/iagent/config.yml
@@ -207,7 +207,7 @@ User=root                                 # 硬件字段需要 root
 ```
 
 ```ini
-# iagent.timer —— 定时触发 service
+# iagent.timer -- 定时触发 service
 [Timer]
 OnCalendar=*-*-* 03,15:00:00              # 每天 03:00 / 15:00 各一次
 Persistent=true                           # 关机错过的周期,开机后补跑
@@ -232,9 +232,9 @@ journalctl -u iagent.service --no-pager | tail
 # 预期:[INFO] push ok: result=created ...
 ```
 
-都通过即部署完成。此后机器每 12h 自动采集推送一次,与 CMDB 的交互(入库/裁决/下线判定)由服务端处理,机器侧无需任何人工干预。
+都通过即部署完成此后机器每 12h 自动采集推送一次,与 CMDB 的交互(入库/裁决/下线判定)由服务端处理,机器侧无需任何人工干预
 
-## 四、Ansible 批量部署
+## 四,Ansible 批量部署
 
 ```bash
 cd ansible
@@ -268,9 +268,9 @@ iagent_token=                               # token 预留位
 iagent_on_calendar=*-*-* 03,15:00:00        # timer 触发时刻(由 interval 决定)
 ```
 
-## 五、托管与日常运维
+## 五,托管与日常运维
 
-iagent 是 **one-shot 进程**,由 systemd timer 托管:timer 每 12h 触发一次 service,进程采集 → 推送 → 退出。没有常驻守护进程,所有状态通过 systemd 查看。
+iagent 是 **one-shot 进程**,由 systemd timer 托管:timer 每 12h 触发一次 service,进程采集 → 推送 → 退出没有常驻守护进程,所有状态通过 systemd 查看
 
 ### 5.1 日常查看
 
@@ -323,10 +323,10 @@ sudo rm -r /etc/iagent
 |---|---|
 | 触发时刻 | 默认 03:00 / 15:00(`OnCalendar`,避开整点与工作高峰),由 Ansible 模板按 `interval` 生成 |
 | `Persistent=true` | 机器关机错过的周期,开机后补跑一次,减少"疑似下线"误判 |
-| 失败自愈 | 推送失败不重试、无本地队列;下个周期全量同步自然自愈 |
+| 失败自愈 | 推送失败不重试,无本地队列;下个周期全量同步自然自愈 |
 | CMDB 侧状态 | `iagent.timer` 持续启用即视为在线;CMDB 超过下线阈值(3 天)未收到推送则判疑似下线 |
 
-## 六、运行与验证
+## 六,运行与验证
 
 推送结果(也写入 CMDB):
 
@@ -336,13 +336,13 @@ sudo rm -r /etc/iagent
 | `unchanged` | 字段级无差异,仅刷新 last_pushed_at |
 | `diff_created` | 有差异,进待裁决,在 CMDB UI 裁决 |
 
-## 七、生产验证情况
+## 七,生产验证情况
 
-2026-09-14 已在两台生产 GPU 服务器完成全链路验证:采集 → 组装 → 推送全字段正常,占位值/空槽/BMC 未配置等边界场景符合设计语义。详细结论见 [DESIGN.md](./DESIGN.md) 第七节。
+2026-09-14 已在两台生产 GPU 服务器完成全链路验证:采集 → 组装 → 推送全字段正常,占位值/空槽/BMC 未配置等边界场景符合设计语义详细结论见 [DESIGN.md](./DESIGN.md) 第七节
 
-**注意**:单字段采集失败时推送体对应字段为 `null`(不是省略、不是空列表),CMDB 侧保留已有数据不进裁决——这是设计语义,不是 bug。整体性失败(hostname 缺失)则整个推送体不发,该周期视为未推送。
+**注意**:单字段采集失败时推送体对应字段为 `null`(不是省略,不是空列表),CMDB 侧保留已有数据不进裁决--这是设计语义,不是 bug整体性失败(hostname 缺失)则整个推送体不发,该周期视为未推送
 
-## 八、问题排查
+## 八,问题排查
 
 | 现象 | 排查 |
 |---|---|
@@ -351,7 +351,7 @@ sudo rm -r /etc/iagent
 | 启动即 `config: parse config` | YAML 格式错误;检查缩进与冒号 |
 | `push: HTTP 4xx` | 校验失败(缺 hostname)或鉴权失败(token);查看日志中的具体错误 |
 | `push: connection refused / timeout` | CMDB 不可达;检查 `server_url` 与网络 |
-| `memory.slots` / `cpus` / `psus` / `chassis_serial_number` 为 null | 这些字段需要 **root**;确认 service 以 root 运行、dmidecode 可用(`sudo dmidecode -t memory`) |
+| `memory.slots` / `cpus` / `psus` / `chassis_serial_number` 为 null | 这些字段需要 **root**;确认 service 以 root 运行,dmidecode 可用(`sudo dmidecode -t memory`) |
 | `gpu.slots` 为 null | 确认机器有 GPU 且 `nvidia-smi --query-gpu=uuid,gpu_name,serial --format=csv,noheader` 可用(SN 字段名是 `serial`,不是 `serial_number`) |
 | `gpu.slots[].serial_number` 为 null | 消费级卡(如 GeForce 4090D)驱动输出 `[N/A]`,无 SN,置 null 属预期 |
 | `mgmt` 全 null | 确认 `ipmitool lan print` 可用(需 BMC/带外通道;未装 ipmitool 也会全 null) |

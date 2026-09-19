@@ -1,17 +1,17 @@
 # iagent 详细设计
 
-> 代码级设计。上游文档:[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)(需求)、[ARCHITECTURE.md](./ARCHITECTURE.md)(架构)、[PAYLOAD_EXAMPLE.md](./PAYLOAD_EXAMPLE.md)(推送体)。
-> 本文档是编码的直接依据,代码与文档不一致时以本文档为准并回改文档。
+> 代码级设计上游文档:[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)(需求),[ARCHITECTURE.md](./ARCHITECTURE.md)(架构),[PAYLOAD_EXAMPLE.md](./PAYLOAD_EXAMPLE.md)(推送体)
+> 本文档是编码的直接依据,代码与文档不一致时以本文档为准并回改文档
 
 ---
 
-## 一、运行模型
+## 一,运行模型
 
-**one-shot 进程 + systemd timer**:timer 每 12h 触发一次 service,进程执行 `采集 → 归一化 → 组装 → 推送 → 退出`。
+**one-shot 进程 + systemd timer**:timer 每 12h 触发一次 service,进程执行 `采集 → 归一化 → 组装 → 推送 → 退出`
 
-- 不做常驻守护:无内部 ticker、无监督复杂度,`systemctl status iagent` 直接看上次运行结果与退出码
-- 推送失败不重试、无本地队列——下个周期全量同步自然自愈
-- 唯一硬失败:hostname 采集失败 → 记日志、退出码 1、不推送
+- 不做常驻守护:无内部 ticker,无监督复杂度,`systemctl status iagent` 直接看上次运行结果与退出码
+- 推送失败不重试,无本地队列--下个周期全量同步自然自愈
+- 唯一硬失败:hostname 采集失败 → 记日志,退出码 1,不推送
 
 ```
 systemd timer(12h)→ iagent(一次运行)
@@ -23,7 +23,7 @@ systemd timer(12h)→ iagent(一次运行)
     └─ exit 0(成功)/ exit 1(hostname 失败)
 ```
 
-## 二、包结构与关键类型
+## 二,包结构与关键类型
 
 ```
 internal/
@@ -48,22 +48,22 @@ type Config struct {
 - 来源优先级:命令行参数 > 配置文件(`/etc/iagent/config.yml`)
 - 配置文件示例随仓库分发,真实配置(含 token/IP)在 `.gitignore` 中排除
 
-### 2.2 collector —— 采集模块
+### 2.2 collector -- 采集模块
 
 **接口与错误语义**(对应失败语义"单字段失败置 null"):
 
 ```go
-// Collector 采集一个顶层组。返回的 struct 中:
+// Collector 采集一个顶层组返回的 struct 中:
 //   - 采集成功的字段有值
 //   - 采集失败的字段为 nil(JSON null),不返回 error
-// 仅 hostname 失败时返回 error(整个流程中止)。
+// 仅 hostname 失败时返回 error(整个流程中止)
 type Collector[T any] interface {
     Collect() (T, error)
 }
 ```
 
 - 每个类别一个文件,内部采集函数统一签名 `func() (*string, error)` 或 `func() ([]X, error)`,error → nil 映射收敛在 collector 内
-- **无外部依赖假设**:优先用 gopsutil 与 /sys、/proc 直读;dmidecode/nvidia-smi 以 `exec.Command` 调用(root 环境已确认)
+- **无外部依赖假设**:优先用 gopsutil 与 /sys,/proc 直读;dmidecode/nvidia-smi 以 `exec.Command` 调用(root 环境已确认)
 - **占位值归一化(`normStr`)**:`Unknown` / `None` / `N/A` / `NA` / `[N/A]` / `NULL` / `Not Specified` 等占位输出视为未采集 → nil(采纳 dg-agent 的 `_normalize` 思路)
 
 | 文件 | 采集内容 | 失败处理 |
@@ -77,21 +77,21 @@ type Collector[T any] interface {
 | `psu.go` | `dmidecode -t 39` System Power Supply;`Status: Not Present` 空槽跳过;容量兼容 `Maximum`/`Max Power Capacity`(dmidecode 3.3 vs 新版) | 失败 → null |
 | `gpu.go` | `nvidia-smi --query-gpu=uuid,gpu_name,serial,memory.total,driver_version,pci.bus_id --format=csv,noheader,nounits` | nvidia-smi 不存在或失败 → gpu 整体 null(机器无 GPU 也 null) |
 
-**GPU 解析要点**:`memory.total` 以 `nounits` 拿到 MiB 数值,经 normalize 转为 `size` + `size_unit`;`pci.bus_id` 仅作参考字段;SN 查询字段名是 **`serial`**(不是 `serial_number`,驱动会拒绝该查询,已验证);消费级卡(如 4090D)SN 输出 `[N/A]` → null。
+**GPU 解析要点**:`memory.total` 以 `nounits` 拿到 MiB 数值,经 normalize 转为 `size` + `size_unit`;`pci.bus_id` 仅作参考字段;SN 查询字段名是 **`serial`**(不是 `serial_number`,驱动会拒绝该查询,已验证);消费级卡(如 4090D)SN 输出 `[N/A]` → null
 
-### 2.3 normalize —— 容量归一化
+### 2.3 normalize -- 容量归一化
 
 ```go
 // NormalizeCapacity 输入任意单位字节数(如 MiB),输出 size + size_unit:
 //   81920( MiB)→ "80", "GB";  8192(GB)→ "8", "TB"
 // 规则:GB/TB 中数值 ≥ 1 的最大单位;结果必须为整数(设备容量均为 2ⁿ);
-// 输入无法精确整数化时向上取整并记日志(理论不出现)。
+// 输入无法精确整数化时向上取整并记日志(理论不出现)
 func NormalizeCapacity(bytes int64) (int64, string)
 ```
 
-- 单测覆盖:1024MB→1GB、16384MB→16GB、81920MB→80GB、8TB→8TB、非 2ⁿ 边界
+- 单测覆盖:1024MB→1GB,16384MB→16GB,81920MB→80GB,8TB→8TB,非 2ⁿ 边界
 
-### 2.4 payload —— 推送体
+### 2.4 payload -- 推送体
 
 ```go
 type Payload struct {
@@ -112,7 +112,7 @@ type Agent struct {
 - 列表字段(nics/memory/cpus/disks/psus/gpu)失败 → nil slice → JSON null(依赖服务端 nics/mgmt 改 Optional)
 - 组装时校验:hostname 非空,否则拒绝生成 payload
 
-### 2.5 push —— HTTP 客户端
+### 2.5 push -- HTTP 客户端
 
 ```go
 func (c *Client) Push(p *payload.Payload) (Result, error)
@@ -129,10 +129,10 @@ type Result struct {
 - 处理:2xx → 解析 result 记日志;4xx/5xx → 记日志返回 error,**不重试**(下周期自愈)
 - 预留 token 后,4xx 中 401/403 单独记日志提示鉴权失败
 
-## 三、systemd 单元设计
+## 三,systemd 单元设计
 
 ```ini
-# iagent.service — one-shot
+# iagent.service -- one-shot
 [Unit]
 Description=iagent CMDB collector
 Wants=network-online.target
@@ -160,7 +160,7 @@ WantedBy=timers.target
 - `Persistent=true`:机器关机错过的周期开机后补跑一次,减少"疑似下线"误判
 - 触发时刻默认 03:00/15:00(避开整点与工作高峰),由 Ansible 模板按配置生成
 
-## 四、Ansible 角色设计
+## 四,Ansible 角色设计
 
 ```
 ansible/roles/iagent/
@@ -176,7 +176,7 @@ ansible/roles/iagent/
 - **升级**:替换二进制 + 重启 timer,`agent.version` 随 `-ldflags` 版本号上报
 - **回滚**:保留上一版本二进制,`iagent_version` 变量切回
 
-## 五、错误处理与日志
+## 五,错误处理与日志
 
 | 场景 | 行为 | 退出码 |
 |---|---|---|
@@ -189,7 +189,7 @@ ansible/roles/iagent/
 - 日志输出到 stdout/stderr(journald 接管),格式:`2026-09-14T07:15:01Z [INFO] push ok: result=unchanged device_id=1`
 - 日志级别:INFO(正常流程)/ WARN(字段失败置 null)/ ERROR(中止性失败)
 
-## 六、设计要点回顾(拷问结论落点)
+## 六,设计要点回顾(拷问结论落点)
 
 | 设计点 | 结论来源 |
 |---|---|
@@ -204,12 +204,12 @@ ansible/roles/iagent/
 | token 预留(header 位) | icmdb 鉴权待实现 |
 | full_sync 暂不推送 | 启用时固定置 true,避开生产高峰 |
 
-## 七、生产验证记录(2026-09-14)
+## 七,生产验证记录(2026-09-14)
 
 163 / 161 两台生产 GPU 服务器全链路验证通过(采集 → 组装 → 推送本地哑服务,未触生产数据):
 
 - **裸金属检测正确**:`systemd-detect-virt` 直读,两台均报 `bare_metal`
-- **机器差异已覆盖**:dmidecode 3.3(SMBIOS 3.6.0)的 `NULL` 占位、`Max Power Capacity` 键名、未插 PSU 空槽;BMC 未配置时的 `0.0.0.0`;消费级 GPU 无 SN
+- **机器差异已覆盖**:dmidecode 3.3(SMBIOS 3.6.0)的 `NULL` 占位,`Max Power Capacity` 键名,未插 PSU 空槽;BMC 未配置时的 `0.0.0.0`;消费级 GPU 无 SN
 - **结构一致性**:两台 payload 顶层与 hardware 层字段完全一致(同名必同义)
 - **遗留项**:`disks[].manufacturer` 置 null 留待更多机器验证;163 未装 ipmitool(`mgmt` null);nics 含 `docker0`/`veth*` 虚拟网卡,是否过滤待定
 - **部署坑**:上传前必须先重新构建(`dist/` 下 gz 可能落后于源码),构建命令见 [USAGE.md](./USAGE.md)
