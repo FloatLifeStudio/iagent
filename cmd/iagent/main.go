@@ -4,7 +4,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -57,27 +56,46 @@ func run() int {
 	serverURL := flag.String("server", "", "CMDB API 地址,如 http://192.168.201.18:8080")
 	token := flag.String("token", "", "API token(预留)")
 	initConfig := flag.Bool("init", false, "生成默认配置文件(已存在则不覆盖)")
-	printOnly := flag.Bool("print", false, "只采集并打印 JSON 到 stdout,不推送(测试用)")
+	printOnly := flag.Bool("print", false, "只采集并打印 JSON 到 stdout,不推送、不需要配置文件(测试用)")
 	flag.Parse()
 
 	if *initConfig {
 		return writeDefaultConfig(*configPath)
 	}
 
-	cfg, err := config.Load(*configPath, *serverURL, *token)
-	if err != nil {
-		// --print 测试模式:不推送,允许未配置 server_url(其余配置错误仍中止)
-		if !(*printOnly && errors.Is(err, config.ErrNoServerURL)) {
-			fmt.Fprintf(os.Stderr, "[ERROR] config: %v\n", err)
-			return 1
-		}
+	// --print 测试模式:不读配置文件,采集后直接打印
+	if *printOnly {
+		return printPayload()
 	}
 
+	cfg, err := config.Load(*configPath, *serverURL, *token)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] config: %v\n", err)
+		return 1
+	}
+
+	p, err := collectAndBuild()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
+		return 1
+	}
+
+	result, err := push.NewClient(cfg.ServerURL, cfg.Token).Push(&p)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] push: %v\n", err)
+		return 1
+	}
+	fmt.Printf("[INFO] push ok: result=%s device_id=%d pending_change_id=%v\n",
+		result.Result, result.DeviceID, result.PendingChangeID)
+	return 0
+}
+
+// collectAndBuild 采集并组装推送体。hostname 失败是唯一硬失败。
+func collectAndBuild() (payload.Payload, error) {
 	// hostname 失败是唯一硬失败:中止,不推送
 	osInfo, err := collector.CollectOS()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] collect os: %v\n", err)
-		return 1
+		return payload.Payload{}, fmt.Errorf("collect os: %w", err)
 	}
 
 	// 其余类别独立采集,单字段失败已在 collector 内置 null
@@ -91,28 +109,24 @@ func run() int {
 	}
 	p, err := payload.Build(agent, osInfo, &mgmt, &hw)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] build payload: %v\n", err)
-		return 1
+		return payload.Payload{}, fmt.Errorf("build payload: %w", err)
 	}
+	return p, nil
+}
 
-	// --print 测试模式:打印采集结果 JSON,不推送
-	if *printOnly {
-		b, err := json.MarshalIndent(p, "", "  ")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] marshal payload: %v\n", err)
-			return 1
-		}
-		fmt.Println(string(b))
-		return 0
-	}
-
-	result, err := push.NewClient(cfg.ServerURL, cfg.Token).Push(&p)
+// printPayload --print 测试模式:采集后直接打印 JSON,不推送、不需要配置文件。
+func printPayload() int {
+	p, err := collectAndBuild()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] push: %v\n", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
 		return 1
 	}
-	fmt.Printf("[INFO] push ok: result=%s device_id=%d pending_change_id=%v\n",
-		result.Result, result.DeviceID, result.PendingChangeID)
+	b, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] marshal payload: %v\n", err)
+		return 1
+	}
+	fmt.Println(string(b))
 	return 0
 }
 

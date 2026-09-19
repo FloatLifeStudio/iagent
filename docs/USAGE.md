@@ -63,7 +63,7 @@ timeout: 30s
 |---|---|---|
 | `--config` | `/etc/iagent/config.yml` | 配置文件路径;传 `/dev/null` 可跳过文件(仅用参数 + 默认值) |
 | `--init` | - | **生成默认配置文件**到 `--config` 路径(带全部注释);已存在则不覆盖;生成后填好 `server_url` 再正式运行 |
-| `--print` | - | **测试模式**:采集 → 组装 → 打印 JSON 到 stdout,**不推送**、不需要 `server_url`;用于不等 12h 直接看采集结果 |
+| `--print` | - | **测试模式**:采集 → 组装 → 打印 JSON 到 stdout,**不推送、不读配置文件、不需要 `server_url`**;用于不等 12h 直接看采集结果 |
 | `--server` | - | CMDB API 地址,**覆盖**配置文件的 `server_url` |
 | `--token` | - | API token,**覆盖**配置文件的 `token` |
 
@@ -171,16 +171,14 @@ sudo /usr/local/bin/iagent --config /etc/iagent/config.yml
 **快速看采集结果**(测试模式,不推送):
 
 ```bash
-# 打印完整采集 JSON 到 stdout,不需要配置 server_url
+# 打印完整采集 JSON 到 stdout,不需要任何配置
 sudo iagent --print
-# 或不依赖配置文件
-sudo iagent --config /dev/null --print
 
 # 只看某类字段(配合 jq)
 sudo iagent --print | jq '.hardware.gpu'
 ```
 
-`--print` 走完整的采集 → 归一化 → 组装流程,只是把最后的推送换成打印 JSON,结果即推送给 CMDB 的内容。
+`--print` 走完整的采集 → 归一化 → 组装流程,只是把最后的推送换成打印 JSON,结果即推送给 CMDB 的内容。`--print` 不读配置文件、不需要 `server_url`,在任何机器上开箱即用。
 
 ### 3.5 安装系统托管(systemd timer)
 
